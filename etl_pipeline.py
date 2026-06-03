@@ -756,11 +756,14 @@ def main(argv: list[str] | None = None) -> int:
                                 n_loaded, n_links)
                     validate_load(engine, films_df)                 # quality check #7
                     db_loaded = True
-                except SQLAlchemyError as exc:
-                    logger.warning("PostgreSQL load failed (%s) -- continuing to "
-                                   "CSV export so the pipeline still completes.",
-                                   exc.__class__.__name__)
-                    logger.debug("DB error detail: %s", exc)
+                except (SQLAlchemyError, ImportError) as exc:
+                    # SQLAlchemyError  -> Postgres unreachable / auth / SQL error.
+                    # ImportError      -> psycopg2 driver not installed.
+                    # Either way, degrade gracefully to CSV-only so the pipeline
+                    # still completes and produces the analytics outputs.
+                    logger.warning("PostgreSQL load skipped (%s: %s) -- continuing "
+                                   "to CSV export so the pipeline still completes.",
+                                   exc.__class__.__name__, exc)
 
         # --- always export the analytics-ready CSVs ---
         export_csv(enriched, CSV_FILMS, "films_for_powerbi")
