@@ -13,9 +13,10 @@ A single, self-contained, reproducible Python ETL that:
                dtypes, ranges, referential integrity, row-count reconciliation)
                with informative logging and fail-fast on critical problems.
     LOAD       Idempotent upserts into a 3NF PostgreSQL schema (films / genres /
-               film_genres + v_films_enriched view). Always exports the
-               analytics-ready CSVs for Power BI. If Postgres is unreachable the
-               pipeline logs a warning and still produces the CSVs.
+               film_genres + v_films_enriched view). Power BI connects to this
+               schema directly via SQL; the pipeline also exports analytics-ready
+               CSV snapshots as a portable fallback. If Postgres is unreachable
+               the pipeline logs a warning and still produces the CSVs.
 
 The PostgreSQL schema, the ERD in schema_documentation.md, and this script's
 inlined DDL all describe the same three tables and one view.

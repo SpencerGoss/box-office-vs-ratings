@@ -2,7 +2,8 @@
 
 A reproducible Python ETL pipeline that extracts ~6,000 films from the TMDB API
 (2000–2026), cleans and validates them, derives analytics metrics, loads them
-into a 3NF PostgreSQL database, and exports analytics-ready CSVs for Power BI.
+into a 3NF PostgreSQL database — the source of truth a Power BI dashboard connects to
+directly via SQL — and also exports analytics-ready CSV snapshots.
 
 **Question:** Do films that earn more also rate higher? Do certain genres show
 consistent gaps between revenue and rating, and does that change across decades?
@@ -15,8 +16,8 @@ A single, self-contained script that runs the full pipeline end-to-end with no
 manual steps:
 
 ```
-TMDB API ─► clean + normalize ─► validate (7 QA checks) ─► PostgreSQL (3NF)
-                                                       └─► analytics CSVs ─► Power BI
+TMDB API ─► clean + normalize ─► validate (7 QA checks) ─► PostgreSQL (3NF) ─► Power BI (live SQL)
+                                                                          └─► analytics CSV snapshots
 ```
 
 | Stage | What it does |
@@ -27,7 +28,8 @@ TMDB API ─► clean + normalize ─► validate (7 QA checks) ─► PostgreSQ
 | **Load** | Idempotent `INSERT … ON CONFLICT` upserts into `films` / `genres` / `film_genres`. Re-running never duplicates (incremental load). Always writes the CSVs; if Postgres is unreachable it logs a warning and still produces the CSVs. |
 
 Outputs:
-- `data/films_for_powerbi.csv` — one enriched row per film (the dashboard source).
+- `data/films_for_powerbi.csv` — one enriched row per film (a Power BI-ready snapshot /
+  no-database fallback; the dashboard itself connects to PostgreSQL directly).
 - `data/genre_decade_summary.csv` — the aggregation layer (rating vs ROI by genre/decade).
 - `logs/etl_pipeline.log` — timestamped run log.
 
@@ -101,7 +103,7 @@ schema_documentation.md   Schema docs + ER diagram
 load_script.py            Simple initial PostgreSQL load script
 src/extract/              Standalone TMDB fetcher (two-stage: discover + movie detail)
 data/raw/                 Extracted TMDB JSON (gitignored, regeneratable)
-data/                     Exported CSVs (gitignored, regeneratable)
+data/*.csv                Exported CSV snapshots (the 2 finalized ones are committed as samples; other CSVs gitignored)
 logs/                     Run logs (gitignored)
 tests/                    Helper / verification scripts
 sample_run_output.txt     Example run output + post-load database queries
@@ -113,7 +115,7 @@ requirements.txt          Python dependencies
 - Python 3 · `requests` · `pandas` · `python-dotenv`
 - SQLAlchemy 2.0 + psycopg2 (DB driver)
 - PostgreSQL 17 (local)
-- Power BI (dashboard layer)
+- Power BI (dashboard layer — connects directly to the PostgreSQL `boxoffice` database via SQL)
 
 ## Data source
 

@@ -1,7 +1,8 @@
 """Initial PostgreSQL Load Script — Box Office vs. Ratings.
 
 Loads TMDB extract JSON into a 3NF PostgreSQL schema and exports a
-denormalized CSV for the Power BI dashboard. Idempotent — every insert
+denormalized CSV snapshot. (The Power BI dashboard connects to PostgreSQL
+directly via SQL; the CSV is a portable export.) Idempotent — every insert
 uses ON CONFLICT, so re-running the script never duplicates rows.
 
 Usage:
@@ -259,7 +260,7 @@ def main() -> int:
     print("\nFinal table counts:")
     report_counts(engine)
 
-    print("\nExporting denormalized CSV for Power BI...")
+    print("\nExporting denormalized CSV snapshot...")
     export_csv(engine)
     return 0
 
