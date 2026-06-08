@@ -36,3 +36,6 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Dash app test artifacts
+.playwright-mcp/

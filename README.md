@@ -1,79 +1,105 @@
-# Box Office vs. Ratings
+# Box Office vs. Ratings — Interactive Film Analytics
 
-A reproducible Python ETL pipeline that extracts ~6,000 films from the TMDB API
-(2000–2026), cleans and validates them, derives analytics metrics, loads them
-into a 3NF PostgreSQL database — the source of truth a Power BI dashboard connects to
-directly via SQL — and also exports analytics-ready CSV snapshots.
+An end-to-end analytics project: a reproducible **Python ETL pipeline** extracts ~6,000
+films from the TMDB API (2000–2026), cleans and validates them, and loads them into a
+**3NF PostgreSQL** database — which powers an interactive **Dash + Plotly** web
+application for exploring how film budgets, box-office returns, and audience ratings
+relate.
 
-**Question:** Do films that earn more also rate higher? Do certain genres show
-consistent gaps between revenue and rating, and does that change across decades?
+**Question:** Do films that earn more also rate higher? How does that differ by genre,
+budget, and over time — and what are the numbers behind any specific film?
+
+```
+TMDB API ─► ETL (clean · validate · load) ─► PostgreSQL (boxoffice, 3NF) ─► Dash app (live SQL)
+```
 
 ---
 
-## The pipeline — `etl_pipeline.py`
+## The Dash application — `app.py`
 
-A single, self-contained script that runs the full pipeline end-to-end with no
-manual steps:
+An interactive **film explorer** connected live to PostgreSQL. It is built to *explore*
+the data, not just present it.
 
-```
-TMDB API ─► clean + normalize ─► validate (7 QA checks) ─► PostgreSQL (3NF) ─► Power BI (live SQL)
-                                                                          └─► analytics CSV snapshots
-```
+| Feature | What it does |
+|---------|--------------|
+| **Spotlight a film** | Search any film by name (or click a chart point / table row) to see its **budget, revenue, profit, ROI, return multiple, rating, runtime**, and an IMDb link. |
+| **KPI cards** | Films shown, avg rating, median return, median ROI %, total profit, hit rate — all recompute with the filters. |
+| **Filters** | Genre, decade, budget tier, and a release-year range slider — every chart, KPI, and the table update instantly. |
+| **Browse films** | A sortable, searchable table of every film; click a row to open it in the spotlight. |
+| **Charts** | Ratings vs. returns scatter, return-by-rating band, genre sweet-spot, budget-tier comparison, hit/flop mix, and a ratings-&-returns time trend. |
+| **Refresh data** | Re-pulls live from PostgreSQL without restarting the app. |
 
-| Stage | What it does |
-|-------|--------------|
-| **Extract** | Reads cached `data/raw/*.json` by default (fast, deterministic). `--refresh` re-pulls from the live TMDB API (two-stage: `/discover/movie` paginated by year → `/movie/{id}` for budget/revenue), with retry + backoff. Missing cache auto-falls back to a live pull. |
-| **Transform** | pandas cleaning, dtype coercion, dedupe, and derived metrics: `profit`, `roi`, `profit_margin`, `budget_tier`, `performance` (hit/flop), `decade`. Builds a genre × decade aggregation layer. |
-| **Validate** | 7 data-quality checks — API response, null required fields, duplicate keys, dtypes, range bounds, referential integrity, and row-count reconciliation — each logged PASS/FAIL. Critical failures abort the run. |
-| **Load** | Idempotent `INSERT … ON CONFLICT` upserts into `films` / `genres` / `film_genres`. Re-running never duplicates (incremental load). Always writes the CSVs; if Postgres is unreachable it logs a warning and still produces the CSVs. |
-
-Outputs:
-- `data/films_for_powerbi.csv` — one enriched row per film (a Power BI-ready snapshot /
-  no-database fallback; the dashboard itself connects to PostgreSQL directly).
-- `data/genre_decade_summary.csv` — the aggregation layer (rating vs ROI by genre/decade).
-- `logs/etl_pipeline.log` — timestamped run log.
-
-A captured example run (including post-load database queries) is in
-[`sample_run_output.txt`](sample_run_output.txt).
-
-## Quick start
+### How to run
 
 ```powershell
-# 1. Activate the virtual environment
+# 1. From the project root, activate the virtual environment
 .\venv\Scripts\Activate.ps1
 
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Configure secrets: copy the template and fill in your values
-Copy-Item .env.example .env   # then edit .env (TMDB token + Postgres creds)
+# 3. Make sure PostgreSQL is running and loaded (see ETL section below),
+#    and that .env has the DB credentials (copy from .env.example).
 
-# 4. Create the database once (if it doesn't exist)
-#    psql -U postgres -c "CREATE DATABASE boxoffice;"
-
-# 5. Run the full pipeline
-python etl_pipeline.py
+# 4. Launch the app
+python app.py
+#    then open http://127.0.0.1:8050
 ```
 
-### Run options
+### Screenshots
+
+**Spotlight + KPIs + browsable film table**
+![Spotlight and table](docs/screenshots/01-spotlight.png)
+
+**Genre analysis**
+![By genre](docs/screenshots/02-genre.png)
+
+### Database integration
+
+The app connects directly to PostgreSQL with SQLAlchemy and runs **one view-based query**
+(`v_films_enriched`) at startup / refresh, deriving presentation fields (decade, ROI %,
+budget tier, performance) in SQL so the database does the heavy lifting; callbacks then
+filter the in-memory frame for instant interactivity. The "Refresh data" button re-queries
+the live database.
+
+---
+
+## Business insights
+
+- **Better-rated films are far more profitable.** Median return climbs steadily with
+  rating: films rated **under 5 lose money (−37%)**, while films rated **8+ return +424%**
+  of their budget.
+- **Bigger budgets pay off.** Blockbusters (>$150M) post the **highest median ROI (179%)**
+  *and* the best ratings (6.9) — large bets are well-vetted; the smallest films are the
+  riskiest.
+- **Genre matters most.** **Animation** is the sweet spot (high ratings *and* strong
+  returns); **Documentaries** post the highest median ROI; Westerns and War the lowest.
+- **~45% of films are outright hits** (returning ≥2× their budget).
+- **Methodology note:** a naive rating-vs-ROI correlation looks near-zero only because a
+  handful of micro-budget films return 100×+, distorting the average — which is why this
+  project reports **medians**, not means, throughout.
+
+---
+
+## The data pipeline — `etl_pipeline.py`
+
+A single, self-contained script that runs the full pipeline end-to-end with no manual steps:
+
+| Stage | What it does |
+|-------|--------------|
+| **Extract** | Reads cached `data/raw/*.json` by default (fast, deterministic). `--refresh` re-pulls from the live TMDB API (two-stage: `/discover/movie` by year → `/movie/{id}` for budget/revenue), with retry + backoff. |
+| **Transform** | pandas cleaning, dtype coercion, dedupe, and derived metrics (`profit`, `roi`, `profit_margin`, `budget_tier`, `performance`, `decade`). |
+| **Validate** | 7 data-quality checks (API response, null required fields, duplicate keys, dtypes, ranges, referential integrity, row-count reconciliation), each logged PASS/FAIL. |
+| **Load** | Idempotent `INSERT … ON CONFLICT` upserts into `films` / `genres` / `film_genres`. Re-running never duplicates. |
 
 ```powershell
-python etl_pipeline.py            # cached extract → PostgreSQL + CSV (default)
+python etl_pipeline.py            # cached extract → PostgreSQL + CSV
 python etl_pipeline.py --refresh  # re-pull from the live TMDB API first
 python etl_pipeline.py --csv-only # skip PostgreSQL, only write the CSVs
 ```
 
-The default run finishes in a few seconds against the cached data. The pipeline
-is idempotent — running it repeatedly produces the same database state.
-
-## Configuration (`.env`)
-
-| Variable | Purpose |
-|----------|---------|
-| `TMDB_READ_ACCESS_TOKEN` | TMDB v4 bearer token (only needed for `--refresh` or a cold cache) |
-| `PG_HOST`, `PG_PORT`, `PG_DATABASE`, `PG_USER`, `PG_PASSWORD` | PostgreSQL connection |
-
-Secrets live in `.env` (gitignored). `.env.example` is the committed template.
+It also exports analytics-ready CSV snapshots (`data/films_for_powerbi.csv`,
+`data/genre_decade_summary.csv`) as a portable, no-database fallback.
 
 ## Database schema (3NF)
 
@@ -85,37 +111,37 @@ Three tables plus one analytics view — fully documented in
 | `films` | One row per movie (financials, runtime, ratings). PK `film_id`, unique `tmdb_id`. |
 | `genres` | TMDB genre lookup (19 rows). |
 | `film_genres` | M:N bridge resolving films ↔ genres. |
-| `v_films_enriched` | View adding `profit`, `roi`, and a comma-joined genre list. |
+| `v_films_enriched` | View adding `profit`, `roi`, and a comma-joined genre list — consumed directly by the Dash app. |
 
-The DDL is inlined in `etl_pipeline.py` as `SCHEMA_DDL`, so the live database, the
-inlined DDL, and the ERD all describe the same schema.
+**Current load:** 6,008 films (2000–2026 YTD) · 19 genres · 15,811 film-genre links.
 
-## Current load
+## Configuration (`.env`)
 
-- **6,008 films** (2000–2026 YTD) · **19 genres** · **15,811 film-genre links**
-- Genre × decade summary: **56 rows**
+| Variable | Purpose |
+|----------|---------|
+| `TMDB_READ_ACCESS_TOKEN` | TMDB v4 bearer token (only needed for `--refresh` / a cold cache) |
+| `PG_HOST`, `PG_PORT`, `PG_DATABASE`, `PG_USER`, `PG_PASSWORD` | PostgreSQL connection (database `boxoffice`) |
+
+Secrets live in `.env` (gitignored). `.env.example` is the committed template.
+
+## Tech stack
+
+- Python 3 · pandas · SQLAlchemy 2.0 + psycopg2 · python-dotenv
+- **Dash 4 · Plotly 6 · dash-bootstrap-components** (interactive app)
+- PostgreSQL 17 (local)
 
 ## Repo layout
 
 ```
+app.py                    Interactive Dash analytics application
 etl_pipeline.py           Full single-file ETL pipeline (extract→transform→validate→load)
 schema_documentation.md   Schema docs + ER diagram
-load_script.py            Simple initial PostgreSQL load script
-src/extract/              Standalone TMDB fetcher (two-stage: discover + movie detail)
-data/raw/                 Extracted TMDB JSON (gitignored, regeneratable)
-data/*.csv                Exported CSV snapshots (the 2 finalized ones are committed as samples; other CSVs gitignored)
-logs/                     Run logs (gitignored)
-tests/                    Helper / verification scripts
-sample_run_output.txt     Example run output + post-load database queries
+load_script.py            Initial PostgreSQL load script
+src/extract/              Standalone TMDB fetcher
+docs/screenshots/         App screenshots
+data/                     Exported CSV snapshots + raw JSON (gitignored)
 requirements.txt          Python dependencies
 ```
-
-## Tech stack
-
-- Python 3 · `requests` · `pandas` · `python-dotenv`
-- SQLAlchemy 2.0 + psycopg2 (DB driver)
-- PostgreSQL 17 (local)
-- Power BI (dashboard layer — connects directly to the PostgreSQL `boxoffice` database via SQL)
 
 ## Data source
 
