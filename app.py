@@ -589,6 +589,7 @@ app.index_string = """<!DOCTYPE html>
   /* Table filter inputs */
   .dash-table-container input { color:#ECE4D3 !important; }
   .dash-filter input::placeholder { color:#8A8068 !important; }
+  .dash-filter--case { display:none !important; }   /* hide the cryptic "Aa" case toggle */
 </style>
 </head>
 <body>{%app_entry%}<footer>{%config%}{%scripts%}{%renderer%}</footer></body>
@@ -710,6 +711,7 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
             dash_table.DataTable(
                 id="film-table", columns=TABLE_COLS, sort_action="native",
                 filter_action="native", page_size=12, page_action="native",
+                filter_options={"case": "insensitive", "placeholder_text": "filter…"},
                 cell_selectable=True, style_as_list_view=True,
                 style_header={"backgroundColor": PANEL_HI, "color": GOLD, "fontWeight": "600",
                               "border": "none", "borderBottom": f"1px solid {BORDER}",
