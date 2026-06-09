@@ -18,12 +18,14 @@ Requires a .env with PG_HOST/PG_PORT/PG_DATABASE/PG_USER/PG_PASSWORD.
 """
 from __future__ import annotations
 
+import json
 import os
 
 import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import requests
 from dash import Dash, Input, Output, State, callback_context, dash_table, dcc, html, no_update
 from dotenv import load_dotenv
 from plotly.subplots import make_subplots
@@ -134,6 +136,42 @@ _BY_REVENUE = FILMS.sort_values("revenue", ascending=False)
 MARQUEE = _BY_REVENUE.iloc[0]
 MARQUEE2 = _BY_REVENUE.iloc[1]
 
+# ---- movie posters (TMDB), cached by imdb_id ----------------------------------
+# Demo-safe: popular films are pre-cached to data/posters.json (instant + works
+# offline); a miss fetches once from TMDB with a short timeout and falls back to a
+# placeholder. Never a live dependency that can break the demo.
+TMDB_TOKEN = os.environ.get("TMDB_READ_ACCESS_TOKEN", "")
+POSTERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "posters.json")
+POSTER_BASE = "https://image.tmdb.org/t/p/w342"
+try:
+    with open(POSTERS_FILE, encoding="utf-8") as _pf:
+        POSTERS = json.load(_pf)          # {imdb_id: "/poster_path.jpg" or null}
+except Exception:
+    POSTERS = {}
+
+
+def poster_url(imdb_id):
+    if not imdb_id or not isinstance(imdb_id, str):
+        return None
+    if imdb_id not in POSTERS:            # cache miss → fetch once (incl. None)
+        path = None
+        if TMDB_TOKEN:
+            try:
+                r = requests.get(f"https://api.themoviedb.org/3/find/{imdb_id}",
+                                 params={"external_source": "imdb_id"},
+                                 headers={"Authorization": f"Bearer {TMDB_TOKEN}"}, timeout=4)
+                path = (r.json().get("movie_results") or [{}])[0].get("poster_path")
+            except Exception:
+                path = None
+        POSTERS[imdb_id] = path
+        try:
+            with open(POSTERS_FILE, "w", encoding="utf-8") as _pf:
+                json.dump(POSTERS, _pf)
+        except Exception:
+            pass
+    p = POSTERS.get(imdb_id)
+    return (POSTER_BASE + p) if p else None
+
 
 # ===========================================================================
 # Filtering + aggregation
@@ -207,32 +245,6 @@ def fig_rating_band(df):
     fig.update_layout(coloraxis_showscale=False)
     fig.add_hline(y=0, line_color=MUTED, line_width=1)
     return style(fig, "Typical return by audience-rating band", height=430)
-
-
-def fig_trend(df):
-    d = df[df["release_year"] <= 2025]
-    yr = (d.groupby("release_year")
-           .agg(rating=("vote_average", "mean"), roi=("roi_pct", "median")).reset_index())
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-    fig.add_trace(go.Scatter(x=yr["release_year"], y=yr["rating"], name="Avg rating",
-                             mode="lines", line=dict(color=PALETTE[0], width=3)), secondary_y=False)
-    fig.add_trace(go.Scatter(x=yr["release_year"], y=yr["roi"], name="Median ROI %",
-                             mode="lines", line=dict(color=PALETTE[2], width=3)), secondary_y=True)
-    fig.update_yaxes(title_text="Avg rating (/10)", secondary_y=False, color=PALETTE[0], gridcolor=GRID)
-    fig.update_yaxes(title_text="Median ROI %", secondary_y=True, color=PALETTE[2], showgrid=False)
-    fig.update_xaxes(title_text="Release year", gridcolor=GRID)
-    return style(fig, "Ratings & returns over time (through 2025)")
-
-
-def fig_genre_scatter(g):
-    fig = px.scatter(g, x="avg_rating", y="median_roi_pct", size="films", color="genre",
-                     text="genre", size_max=42,
-                     labels={"avg_rating": "Avg audience rating (/10)",
-                             "median_roi_pct": "Median ROI %", "genre": "Genre"})
-    fig.update_traces(textposition="top center", textfont=dict(size=10, color=INK),
-                      marker=dict(line=dict(width=0)))
-    fig.update_layout(showlegend=False)
-    return style(fig, "Genres — rating vs. return (bubble size = # films)", height=470)
 
 
 def fig_genre_bar(g):
@@ -321,41 +333,6 @@ def stat(label, value, color=INK):
     ], className="px-1")
 
 
-def film_detail(row):
-    profit_color = TEAL if row["profit"] >= 0 else RED
-    perf_color = PERF_COLORS.get(row["performance"], MUTED)
-    badge_text = "#13161B" if perf_color == GOLD else "white"  # dark text only on bright gold
-    return dbc.Row([
-        dbc.Col([
-            html.H5(f"{row['title']}  ", className="d-inline fw-bold", style={"color": INK}),
-            html.Span(f"({int(row['release_year'])})", style={"color": MUTED}),
-            html.Div(row["genres"] or "—",
-                     style={"fontSize": "0.85rem", "marginBottom": "8px", "color": "#C4C9D2"}),
-            html.Span(PERF_BADGE.get(row["performance"], row["performance"]),
-                      title="Performance tier = revenue ÷ production budget",
-                      style={"display": "inline-block", "backgroundColor": perf_color,
-                             "color": badge_text, "fontWeight": 700, "fontSize": "0.82rem",
-                             "padding": "0.35em 0.75em", "borderRadius": "6px",
-                             "letterSpacing": "0.2px"}),
-        ], md=4, className="border-end"),
-        dbc.Col(dbc.Row([
-            dbc.Col(stat("Budget", money(row["budget"])), xs=4),
-            dbc.Col(stat("Revenue", money(row["revenue"])), xs=4),
-            dbc.Col(stat("Profit", money(row["profit"]), profit_color), xs=4),
-            dbc.Col(stat("Return", f"{row['revenue_multiple']:.1f}×"), xs=3),
-            dbc.Col(stat("ROI", f"{row['roi_pct']:.0f}%"), xs=3),
-            dbc.Col(stat("Rating", f"{row['vote_average']:.1f}/10"), xs=3),
-            dbc.Col(stat("Runtime", f"{int(row['runtime'])} min" if pd.notna(row["runtime"]) else "—"), xs=3),
-        ], className="g-2"), md=8),
-    ], className="align-items-center")
-
-
-DETAIL_PROMPT = html.Div(
-    "Search a film, or click any chart point or table row, to see its budget, revenue, "
-    "profit, ROI and rating.",
-    className="text-muted py-2", style={"fontSize": "0.9rem"})
-
-
 # ===========================================================================
 # Compare two films (head-to-head)
 # ===========================================================================
@@ -420,6 +397,103 @@ COMPARE_PROMPT = html.Div("Pick a film on each side to compare them.",
 
 
 # ===========================================================================
+# Film page — the rich single-film view (poster + money + how-it-ranks + scatter)
+# ===========================================================================
+def _pct(series, value):
+    """Percentile of `value` within `series` (share of films it beats)."""
+    s = series.dropna()
+    if len(s) == 0 or pd.isna(value):
+        return 0.0
+    return float((s < value).mean() * 100)
+
+
+def fig_money(row):
+    labels = ["Budget", "Revenue", "Profit"]
+    vals = [row["budget"], row["revenue"], row["profit"]]
+    colors = [MUTED, GOLD, TEAL if row["profit"] >= 0 else RED]
+    fig = go.Figure(go.Bar(
+        x=vals, y=labels, orientation="h", marker_color=colors,
+        text=[money(v) for v in vals], textposition="outside",
+        textfont=dict(size=12, color=INK), cliponaxis=False, showlegend=False))
+    fig.update_yaxes(autorange="reversed", tickfont=dict(size=11, color=INK))
+    fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=True, zerolinecolor=GRID)
+    fig.update_xaxes(range=[min(0, min(vals)) * 1.05, max(vals) * 1.28])
+    return style(fig, "The money", height=235)
+
+
+def fig_ranks(row):
+    items = [("Revenue", _pct(FILMS["revenue"], row["revenue"]), GOLD),
+             ("ROI", _pct(FILMS["roi_pct"], row["roi_pct"]), BLUE),
+             ("Rating", _pct(FILMS["vote_average"], row["vote_average"]), TEAL)]
+    pcts = [i[1] for i in items]
+
+    def lab(p):
+        return f"top {max(1, round(100 - p))}%" if p >= 50 else f"beats {round(p)}%"
+    fig = go.Figure(go.Bar(
+        x=pcts, y=[i[0] for i in items], orientation="h",
+        marker_color=[i[2] for i in items],
+        text=[lab(p) for p in pcts], textposition="outside",
+        textfont=dict(size=11, color=INK), cliponaxis=False, showlegend=False))
+    fig.update_yaxes(autorange="reversed", tickfont=dict(size=11, color=INK))
+    fig.update_xaxes(range=[0, 122], showticklabels=False, showgrid=False, zeroline=False)
+    return style(fig, "How it ranks vs. all films", height=235)
+
+
+def fig_film_scatter(row):
+    d = FILMS[(FILMS["budget"] >= 100000) & (FILMS["revenue_multiple"] <= 25)]
+    fig = go.Figure()
+    fig.add_trace(go.Scattergl(
+        x=d["vote_average"], y=d["revenue_multiple"], mode="markers",
+        marker=dict(size=4, color=MUTED, opacity=0.18), hoverinfo="skip", showlegend=False))
+    fig.add_trace(go.Scatter(
+        x=[row["vote_average"]], y=[min(row["revenue_multiple"], 25)], mode="markers",
+        marker=dict(size=16, color=GOLD, line=dict(color="white", width=2)),
+        hovertext=[row["title"]], hoverinfo="text", showlegend=False))
+    fig.update_xaxes(title_text="Rating (/10)", title_font=dict(size=11))
+    fig.update_yaxes(title_text="Return (× budget)", title_font=dict(size=11))
+    return style(fig, "Where it sits", height=235)
+
+
+def poster_block(row):
+    url = poster_url(row.get("imdb_id"))
+    if url:
+        return html.Img(src=url, alt=row["title"],
+                        style={"width": "100%", "borderRadius": "8px",
+                               "border": f"1px solid {BORDER}", "boxShadow": SHADOW,
+                               "display": "block"})
+    return html.Div(row["title"],
+                    style={"width": "100%", "aspectRatio": "2 / 3", "borderRadius": "8px",
+                           "border": f"1px dashed {BORDER}", "backgroundColor": PANEL_HI,
+                           "color": MUTED, "fontSize": "0.82rem", "textAlign": "center",
+                           "display": "flex", "alignItems": "center",
+                           "justifyContent": "center", "padding": "0 10px"})
+
+
+def film_meta(row):
+    perf_color = PERF_COLORS.get(row["performance"], MUTED)
+    badge_text = "#13161B" if perf_color == GOLD else "white"
+    rt = f"{int(row['runtime'])} min" if pd.notna(row["runtime"]) else "—"
+    return html.Div([
+        html.Span(row["title"], style={"fontFamily": HEAD_FONT, "fontWeight": 600,
+                                       "fontSize": "1.45rem", "color": INK, "letterSpacing": "0.3px"}),
+        html.Span(f"  ({int(row['release_year'])})", style={"color": MUTED, "fontSize": "1rem"}),
+        html.Div(row["genres"] or "—", style={"fontSize": "0.85rem", "color": "#C4C9D2",
+                                              "margin": "2px 0 8px"}),
+        html.Span(PERF_BADGE.get(row["performance"], row["performance"]),
+                  title="Performance tier = revenue ÷ production budget",
+                  style={"display": "inline-block", "backgroundColor": perf_color, "color": badge_text,
+                         "fontWeight": 700, "fontSize": "0.8rem", "padding": "0.35em 0.75em",
+                         "borderRadius": "6px"}),
+        dbc.Row([
+            dbc.Col(stat("Rating", f"{row['vote_average']:.1f}/10"), xs=6, sm=3),
+            dbc.Col(stat("Return", f"{row['revenue_multiple']:.1f}×"), xs=6, sm=3),
+            dbc.Col(stat("ROI", f"{row['roi_pct']:.0f}%"), xs=6, sm=3),
+            dbc.Col(stat("Runtime", rt), xs=6, sm=3),
+        ], className="g-2 mt-2"),
+    ])
+
+
+# ===========================================================================
 # UI helpers
 # ===========================================================================
 def kpi(title, idd, accent=ACCENT):
@@ -440,8 +514,8 @@ def dd(idd, options, placeholder):
                         options=[{"label": o, "value": o} for o in options])
 
 
-def graph(idd, height="44vh"):
-    return dcc.Graph(id=idd, style={"height": height, "minHeight": "360px"},
+def graph(idd, height="44vh", minh="360px"):
+    return dcc.Graph(id=idd, style={"height": height, "minHeight": minh},
                      config={"displayModeBar": False, "responsive": True})
 
 
@@ -539,17 +613,26 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
         style={"background": PANEL, "border": f"1px solid {BORDER}", "borderRadius": "10px",
                "padding": "1.15rem 1.4rem", "marginBottom": "1.1rem", "boxShadow": SHADOW}),
 
-    # ---- film spotlight (search a specific movie) ----
+    # ---- film page (search a movie → poster + money + how-it-ranks + scatter) ----
     card([
         dbc.Row([
-            dbc.Col(html.Small("SPOTLIGHT A FILM", className="fw-bold", style={"color": MUTED}), md=3),
-        ]),
-        dbc.Row([
+            dbc.Col(html.Small("SPOTLIGHT A FILM", className="fw-bold",
+                               style={"color": MUTED, "letterSpacing": "0.6px"}), md=5),
             dbc.Col(dcc.Dropdown(id="film-picker", options=PICKER_OPTS,
                                  value=int(MARQUEE["film_id"]),
-                                 placeholder="Search any film by name…", optionHeight=34), md=4),
-            dbc.Col(html.Div(film_detail(MARQUEE), id="film-detail"), md=8),
-        ], className="g-3 align-items-center"),
+                                 placeholder="Search any film by name…", optionHeight=34), md=7),
+        ], className="g-2 align-items-center mb-3"),
+        dbc.Row([
+            dbc.Col(html.Div(poster_block(MARQUEE), id="film-poster"), xs=4, md=3, lg=2),
+            dbc.Col([
+                html.Div(film_meta(MARQUEE), id="film-meta"),
+                dbc.Row([
+                    dbc.Col(graph("g-film-money", "22vh", "175px"), md=4),
+                    dbc.Col(graph("g-film-ranks", "22vh", "175px"), md=4),
+                    dbc.Col(graph("g-film-scatter", "22vh", "175px"), md=4),
+                ], className="g-2 mt-1"),
+            ], xs=8, md=9, lg=10),
+        ], className="g-3"),
     ], marginBottom="1rem"),
 
     # ---- KPI cards (summarise the current filter) ----
@@ -636,20 +719,15 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
                    className="mt-2 mb-2", style={"fontSize": "0.82rem", "color": MUTED}),
             dbc.Row([dbc.Col(graph("g-scatter"), lg=7), dbc.Col(graph("g-band"), lg=5)],
                     className="g-3")]),
-        dbc.Tab(label="By genre", tab_id="t-genre", children=[
-            html.P("Which genres earn the most per dollar — and how well are they rated?",
+        dbc.Tab(label="What makes money", tab_id="t-money", children=[
+            html.P("Which genres and budget levels actually make money — and the overall "
+                   "hit / flop split.",
                    className="mt-2 mb-2", style={"fontSize": "0.82rem", "color": MUTED}),
-            dbc.Row([dbc.Col(graph("g-genre-scatter", "48vh"), lg=7),
-                     dbc.Col(graph("g-genre-bar", "48vh"), lg=5)], className="g-3")]),
-        dbc.Tab(label="By budget", tab_id="t-budget", children=[
-            html.P("How ratings and returns shift as budgets grow, and the hit / flop mix.",
-                   className="mt-2 mb-2", style={"fontSize": "0.82rem", "color": MUTED}),
-            dbc.Row([dbc.Col(graph("g-tier"), lg=8), dbc.Col(graph("g-perf"), lg=4)],
-                    className="g-3")]),
-        dbc.Tab(label="Over time", tab_id="t-time", children=[
-            html.P("How average ratings and median returns have moved year by year.",
-                   className="mt-2 mb-2", style={"fontSize": "0.82rem", "color": MUTED}),
-            dbc.Row([dbc.Col(graph("g-trend"), lg=12)], className="g-3")]),
+            dbc.Row([
+                dbc.Col(graph("g-genre-bar", "50vh"), lg=5),
+                dbc.Col(graph("g-tier", "50vh"), lg=4),
+                dbc.Col(graph("g-perf", "50vh"), lg=3),
+            ], className="g-3")]),
     ])), className="mt-3"),
 
     html.P("Built with Dash + Plotly on PostgreSQL · data from TMDB. This product uses the "
@@ -666,8 +744,8 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
     Output("kpi-mult", "children"), Output("kpi-roi", "children"),
     Output("kpi-profit", "children"), Output("kpi-hits", "children"),
     Output("g-scatter", "figure"), Output("g-band", "figure"),
-    Output("g-genre-scatter", "figure"), Output("g-genre-bar", "figure"),
-    Output("g-tier", "figure"), Output("g-perf", "figure"), Output("g-trend", "figure"),
+    Output("g-genre-bar", "figure"),
+    Output("g-tier", "figure"), Output("g-perf", "figure"),
     Output("g-top-rev", "figure"), Output("g-top-profit", "figure"),
     Output("g-top-mult", "figure"), Output("g-top-loss", "figure"),
     Output("film-table", "data"),
@@ -678,7 +756,7 @@ def update(genres, decades, tiers, year_range):
     df = apply_filters(FILMS, genres, decades, tiers, year_range)
     if df.empty:
         e = style(go.Figure(), "No films match the current filters")
-        return ("0", "—", "—", "—", "$0", "—", e, e, e, e, e, e, e, e, e, e, e, [])
+        return ("0", "—", "—", "—", "$0", "—", e, e, e, e, e, e, e, e, e, [])
 
     profit_txt = money(df["profit"].sum())
     hits = (df["performance"] == "Hit (>=2x)").mean() * 100
@@ -691,8 +769,8 @@ def update(genres, decades, tiers, year_range):
         f"{len(df):,}", f"{df['vote_average'].mean():.2f}",
         f"{df['revenue_multiple'].median():.1f}×", f"{df['roi_pct'].median():.0f}%",
         profit_txt, f"{hits:.0f}%",
-        fig_scatter(df), fig_rating_band(df), fig_genre_scatter(g), fig_genre_bar(g),
-        fig_tier_bars(df), fig_perf_donut(df), fig_trend(df),
+        fig_scatter(df), fig_rating_band(df), fig_genre_bar(g),
+        fig_tier_bars(df), fig_perf_donut(df),
         fig_leaderboard(df, "revenue", "Biggest box office", color=GOLD),
         fig_leaderboard(df, "profit", "Biggest profit", color=TEAL),
         fig_leaderboard(df, "revenue_multiple", "Best return on budget (budget ≥ $10M)",
@@ -714,7 +792,9 @@ def _film_id_from_click(click):
 
 
 @app.callback(
-    Output("film-detail", "children"), Output("film-picker", "value"),
+    Output("film-poster", "children"), Output("film-meta", "children"),
+    Output("g-film-money", "figure"), Output("g-film-ranks", "figure"),
+    Output("g-film-scatter", "figure"), Output("film-picker", "value"),
     Input("film-picker", "value"),
     *[Input(g, "clickData") for g in CLICK_GRAPHS],
     Input("film-table", "active_cell"),
@@ -731,18 +811,18 @@ def spotlight(picker_id, *args):
         fid = _film_id_from_click(clicks[CLICK_GRAPHS.index(trig)])
     elif trig == "film-table" and cell and viewport:
         fid = (viewport[cell["row"]] or {}).get("film_id")
-    if fid is None:
-        return DETAIL_PROMPT, no_update
     try:
-        fid = int(fid)
+        fid = int(fid) if fid is not None else None
     except (TypeError, ValueError):
-        return DETAIL_PROMPT, no_update
-    row = FILMS[FILMS["film_id"] == fid]
-    if row.empty:
-        return DETAIL_PROMPT, no_update
+        fid = None
+    row = FILMS[FILMS["film_id"] == fid] if fid is not None else FILMS.iloc[0:0]
+    if row.empty:  # nothing valid selected — leave the current film page as-is
+        return (no_update,) * 6
+    r = row.iloc[0]
     # Don't echo a value back to the picker when the picker (or initial load) is the source.
     new_value = no_update if trig in (None, "film-picker") else fid
-    return film_detail(row.iloc[0]), new_value
+    return (poster_block(r), film_meta(r), fig_money(r), fig_ranks(r),
+            fig_film_scatter(r), new_value)
 
 
 @app.callback(
