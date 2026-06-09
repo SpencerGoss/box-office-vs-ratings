@@ -56,6 +56,10 @@ PALETTE = [GOLD, BLUE, TEAL, RED, "#B07CC6", "#6FA8A0"]
 TIER_ORDER = ["Low (<$10M)", "Mid ($10-50M)", "High ($50-150M)", "Blockbuster (>=$150M)"]
 PERF_ORDER = ["Flop (<1x)", "Profitable (1-2x)", "Hit (>=2x)"]
 PERF_COLORS = {"Flop (<1x)": RED, "Profitable (1-2x)": GOLD, "Hit (>=2x)": TEAL}
+# Plain-English badge text — the raw "Hit (>=2x)" labels are jargon to a demo audience.
+PERF_BADGE = {"Flop (<1x)": "Flop · lost money",
+              "Profitable (1-2x)": "Profitable · made 1–2× its budget",
+              "Hit (>=2x)": "Hit · made 2×+ its budget"}
 
 FILMS_SQL = text("""
     SELECT v.film_id, v.title, v.imdb_id, v.release_year,
@@ -319,18 +323,18 @@ def stat(label, value, color=INK):
 
 def film_detail(row):
     profit_color = TEAL if row["profit"] >= 0 else RED
-    imdb = (html.A("View on IMDb ↗", href=f"https://www.imdb.com/title/{row['imdb_id']}/",
-                   target="_blank", style={"fontSize": "0.8rem"})
-            if isinstance(row.get("imdb_id"), str) and row["imdb_id"] else "")
+    perf_color = PERF_COLORS.get(row["performance"], MUTED)
     return dbc.Row([
         dbc.Col([
             html.H5(f"{row['title']}  ", className="d-inline fw-bold", style={"color": INK}),
             html.Span(f"({int(row['release_year'])})", style={"color": MUTED}),
-            html.Div(row["genres"] or "—", className="text-muted",
-                     style={"fontSize": "0.85rem", "marginBottom": "2px"}),
-            dbc.Badge(row["performance"], color="light", text_color="dark",
-                      className="me-2", style={"border": f"1px solid {profit_color}"}),
-            html.Span(imdb),
+            html.Div(row["genres"] or "—",
+                     style={"fontSize": "0.85rem", "marginBottom": "6px", "color": "#C4C9D2"}),
+            dbc.Badge(PERF_BADGE.get(row["performance"], row["performance"]),
+                      className="me-2",
+                      style={"backgroundColor": "transparent", "border": f"1px solid {perf_color}",
+                             "color": perf_color, "fontWeight": 600, "fontSize": "0.72rem"},
+                      title="Performance tier = revenue ÷ production budget"),
         ], md=4, className="border-end"),
         dbc.Col(dbc.Row([
             dbc.Col(stat("Budget", money(row["budget"])), xs=4),
