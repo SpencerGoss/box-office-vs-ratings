@@ -324,17 +324,19 @@ def stat(label, value, color=INK):
 def film_detail(row):
     profit_color = TEAL if row["profit"] >= 0 else RED
     perf_color = PERF_COLORS.get(row["performance"], MUTED)
+    badge_text = "#13161B" if perf_color == GOLD else "white"  # dark text only on bright gold
     return dbc.Row([
         dbc.Col([
             html.H5(f"{row['title']}  ", className="d-inline fw-bold", style={"color": INK}),
             html.Span(f"({int(row['release_year'])})", style={"color": MUTED}),
             html.Div(row["genres"] or "—",
-                     style={"fontSize": "0.85rem", "marginBottom": "6px", "color": "#C4C9D2"}),
-            dbc.Badge(PERF_BADGE.get(row["performance"], row["performance"]),
-                      className="me-2",
-                      style={"backgroundColor": "transparent", "border": f"1px solid {perf_color}",
-                             "color": perf_color, "fontWeight": 600, "fontSize": "0.72rem"},
-                      title="Performance tier = revenue ÷ production budget"),
+                     style={"fontSize": "0.85rem", "marginBottom": "8px", "color": "#C4C9D2"}),
+            html.Span(PERF_BADGE.get(row["performance"], row["performance"]),
+                      title="Performance tier = revenue ÷ production budget",
+                      style={"display": "inline-block", "backgroundColor": perf_color,
+                             "color": badge_text, "fontWeight": 700, "fontSize": "0.82rem",
+                             "padding": "0.35em 0.75em", "borderRadius": "6px",
+                             "letterSpacing": "0.2px"}),
         ], md=4, className="border-end"),
         dbc.Col(dbc.Row([
             dbc.Col(stat("Budget", money(row["budget"])), xs=4),
