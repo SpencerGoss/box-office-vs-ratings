@@ -36,24 +36,25 @@ from sqlalchemy import create_engine, text
 # ===========================================================================
 load_dotenv()
 
-# ---- "movie theater" palette: charcoal canvas, cinema-gold accent, curtain red ----
-BG = "#13161B"          # theater-dark page background
-PANEL = "#1C2027"       # cards / chart panels
-PANEL_HI = "#242932"    # table header, hover, raised bits
-BORDER = "#2C313B"      # subtle border on dark
-INK = "#ECE9E1"         # warm off-white (primary text)
-MUTED = "#9098A4"       # muted grey text
-GRID = "#262B34"        # chart gridlines on dark
-GOLD = "#D7A33F"        # cinema gold — primary accent (marquee / awards)
-RED = "#C0524A"         # curtain red — losses / negatives
-BLUE = "#5E8CB3"        # muted steel-blue — secondary series
-TEAL = "#3FA39B"        # green-teal — "good"/winner
+# ---- "movie theater" palette: warm espresso canvas + the classic teal-and-orange
+# film-grading scheme (cinema gold/amber warm, teal as the complementary cool) ----
+BG = "#15120C"          # warm espresso-charcoal (a dim theater)
+PANEL = "#1F1A12"       # warm dark — cards / chart panels
+PANEL_HI = "#2A2318"    # table header, hover, raised bits
+BORDER = "#352D20"      # subtle warm border
+INK = "#ECE4D3"         # warm cream (primary text)
+MUTED = "#A99E88"       # warm grey text
+GRID = "#2B2417"        # chart gridlines
+GOLD = "#D9A441"        # marquee gold — primary (box office, hits)
+ORANGE = "#D07C38"      # warm amber — secondary (returns, ROI)
+TEAL = "#46A7A0"        # complementary cool — the teal of teal-and-orange grading
+RED = "#C24A42"         # curtain crimson — losses / flops
 ACCENT = GOLD
 PAGE_BG = BG
-SHADOW = "0 2px 8px rgba(0,0,0,0.40)"
+SHADOW = "0 2px 10px rgba(0,0,0,0.50)"
 FONT = "Inter, Segoe UI, Helvetica, Arial, sans-serif"
 HEAD_FONT = "Oswald, Inter, sans-serif"   # condensed, movie-poster feel for titles
-PALETTE = [GOLD, BLUE, TEAL, RED, "#B07CC6", "#6FA8A0"]
+PALETTE = [GOLD, TEAL, ORANGE, RED, "#C9A36A", "#7FA59E"]
 
 TIER_ORDER = ["Low (<$10M)", "Mid ($10-50M)", "High ($50-150M)", "Blockbuster (>=$150M)"]
 PERF_ORDER = ["Flop (<1x)", "Profitable (1-2x)", "Hit (>=2x)"]
@@ -211,6 +212,7 @@ def style(fig, title, height=430):
         hoverlabel=dict(font=dict(family=FONT), bgcolor=PANEL_HI, bordercolor=BORDER))
     fig.update_xaxes(gridcolor=GRID, zerolinecolor=GRID, linecolor=GRID)
     fig.update_yaxes(gridcolor=GRID, zerolinecolor=GRID, linecolor=GRID)
+    fig.update_traces(marker_cornerradius=5, selector=dict(type="bar"))  # softer, designed bars
     return fig
 
 
@@ -339,7 +341,7 @@ def stat(label, value, color=INK):
 def fig_compare(a, b):
     metrics = ["Budget", "Revenue", "Profit"]
     fig = go.Figure()
-    for film, colr in ((a, GOLD), (b, BLUE)):
+    for film, colr in ((a, GOLD), (b, TEAL)):
         vals = [film["budget"], film["revenue"], film["profit"]]
         fig.add_trace(go.Bar(
             name=film["title"][:28], x=metrics, y=vals, marker_color=colr,
@@ -377,8 +379,8 @@ def compare_stats(a, b):
         html.Th("", style={"padding": "9px 12px", "borderBottom": f"2px solid {ACCENT}"}),
         html.Th(a["title"], style={"padding": "9px 12px", "textAlign": "right", "color": ACCENT,
                                    "fontSize": "0.84rem", "borderBottom": f"2px solid {ACCENT}"}),
-        html.Th(b["title"], style={"padding": "9px 12px", "textAlign": "right", "color": BLUE,
-                                   "fontSize": "0.84rem", "borderBottom": f"2px solid {BLUE}"}),
+        html.Th(b["title"], style={"padding": "9px 12px", "textAlign": "right", "color": TEAL,
+                                   "fontSize": "0.84rem", "borderBottom": f"2px solid {TEAL}"}),
     ])
     body = []
     for label, at, bt, av, bv in rows:
@@ -423,7 +425,7 @@ def fig_money(row):
 
 def fig_ranks(row):
     items = [("Revenue", _pct(FILMS["revenue"], row["revenue"]), GOLD),
-             ("ROI", _pct(FILMS["roi_pct"], row["roi_pct"]), BLUE),
+             ("ROI", _pct(FILMS["roi_pct"], row["roi_pct"]), ORANGE),
              ("Rating", _pct(FILMS["vote_average"], row["vote_average"]), TEAL)]
     pcts = [i[1] for i in items]
 
@@ -471,13 +473,13 @@ def poster_block(row):
 
 def film_meta(row):
     perf_color = PERF_COLORS.get(row["performance"], MUTED)
-    badge_text = "#13161B" if perf_color == GOLD else "white"
+    badge_text = "#15120C" if perf_color == GOLD else "white"
     rt = f"{int(row['runtime'])} min" if pd.notna(row["runtime"]) else "—"
     return html.Div([
         html.Span(row["title"], style={"fontFamily": HEAD_FONT, "fontWeight": 600,
                                        "fontSize": "1.45rem", "color": INK, "letterSpacing": "0.3px"}),
         html.Span(f"  ({int(row['release_year'])})", style={"color": MUTED, "fontSize": "1rem"}),
-        html.Div(row["genres"] or "—", style={"fontSize": "0.85rem", "color": "#C4C9D2",
+        html.Div(row["genres"] or "—", style={"fontSize": "0.85rem", "color": "#CBC1AC",
                                               "margin": "2px 0 8px"}),
         html.Span(PERF_BADGE.get(row["performance"], row["performance"]),
                   title="Performance tier = revenue ÷ production budget",
@@ -496,12 +498,14 @@ def film_meta(row):
 # ===========================================================================
 # UI helpers
 # ===========================================================================
-def kpi(title, idd, accent=ACCENT):
+def kpi(title, idd, accent=ACCENT, tip=None):
     """Metric tile with depth (soft shadow) and a single cohesive accent — a coloured top
-    rule + coloured value, same hue family across all tiles (branded, not the old rainbow)."""
+    rule + coloured value, same hue family across all tiles (branded, not the old rainbow).
+    `tip` adds a hover tooltip explaining the metric."""
     return dbc.Card(dbc.CardBody([
-        html.Div(title, className="text-uppercase",
-                 style={"fontSize": "0.68rem", "letterSpacing": "0.7px", "color": MUTED, "fontWeight": 600}),
+        html.Div(title, className="text-uppercase", title=tip,
+                 style={"fontSize": "0.68rem", "letterSpacing": "0.7px", "color": MUTED,
+                        "fontWeight": 600, "cursor": "help" if tip else "default"}),
         html.Div(id=idd, style={"fontSize": "1.55rem", "fontWeight": 700, "color": accent,
                                 "lineHeight": "1.15", "marginTop": "4px"}),
     ], style={"padding": "0.85rem 1rem"}), className="h-100",
@@ -554,37 +558,37 @@ app.index_string = """<!DOCTYPE html>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  html, body { background:#13161B; color:#ECE9E1; }
-  ::selection { background:#D7A33F; color:#13161B; }
+  html, body { background:#15120C; color:#ECE4D3; }
+  ::selection { background:#D9A441; color:#15120C; }
   /* Dropdown (Dash 3 native) */
-  .dash-dropdown, .dash-dropdown-trigger { background:#1C2027 !important; border-color:#2C313B !important;
-      color:#ECE9E1 !important; border-radius:6px; }
-  .dash-dropdown-value, .dash-dropdown-value-item span, .dash-dropdown-placeholder { color:#ECE9E1 !important; }
+  .dash-dropdown, .dash-dropdown-trigger { background:#1F1A12 !important; border-color:#352D20 !important;
+      color:#ECE4D3 !important; border-radius:6px; }
+  .dash-dropdown-value, .dash-dropdown-value-item span, .dash-dropdown-placeholder { color:#ECE4D3 !important; }
   /* open menu popup */
-  .dash-dropdown-content { background:#1C2027 !important; color:#ECE9E1 !important;
-      border:1px solid #2C313B !important; }
-  .dash-dropdown-search { background:#13161B !important; color:#ECE9E1 !important;
-      border:1px solid #2C313B !important; }
-  .dash-options-list, .dash-dropdown-options { background:#1C2027 !important; color:#ECE9E1 !important; }
-  .dash-options-list-option, .dash-dropdown-option { color:#ECE9E1 !important; background:transparent !important; }
-  .dash-options-list-option:hover, .dash-dropdown-option:hover { background:#242932 !important;
-      color:#D7A33F !important; }
-  .dash-dropdown-action-button { color:#D7A33F !important; background:transparent !important; }
+  .dash-dropdown-content { background:#1F1A12 !important; color:#ECE4D3 !important;
+      border:1px solid #352D20 !important; }
+  .dash-dropdown-search { background:#15120C !important; color:#ECE4D3 !important;
+      border:1px solid #352D20 !important; }
+  .dash-options-list, .dash-dropdown-options { background:#1F1A12 !important; color:#ECE4D3 !important; }
+  .dash-options-list-option, .dash-dropdown-option { color:#ECE4D3 !important; background:transparent !important; }
+  .dash-options-list-option:hover, .dash-dropdown-option:hover { background:#2A2318 !important;
+      color:#D9A441 !important; }
+  .dash-dropdown-action-button { color:#D9A441 !important; background:transparent !important; }
   /* Range slider (Dash 3 native) */
-  .dash-slider-track { background:#2C313B !important; }
-  .dash-slider-range { background:#D7A33F !important; }
-  .dash-slider-handle { background:#D7A33F !important; border-color:#D7A33F !important; }
-  .dash-slider-mark-text { color:#9098A4 !important; }
-  .dash-range-slider-input { background:#1C2027 !important; color:#ECE9E1 !important; border-color:#2C313B !important; }
+  .dash-slider-track { background:#352D20 !important; }
+  .dash-slider-range { background:#D9A441 !important; }
+  .dash-slider-handle { background:#D9A441 !important; border-color:#D9A441 !important; }
+  .dash-slider-mark-text { color:#A99E88 !important; }
+  .dash-range-slider-input { background:#1F1A12 !important; color:#ECE4D3 !important; border-color:#352D20 !important; }
   /* Tabs */
-  .nav-tabs { border-bottom:1px solid #2C313B !important; }
-  .nav-tabs .nav-link { color:#9098A4 !important; border:none !important; font-weight:500; }
-  .nav-tabs .nav-link:hover { color:#ECE9E1 !important; }
-  .nav-tabs .nav-link.active { color:#D7A33F !important; background:transparent !important;
-      border-bottom:2px solid #D7A33F !important; }
+  .nav-tabs { border-bottom:1px solid #352D20 !important; }
+  .nav-tabs .nav-link { color:#A99E88 !important; border:none !important; font-weight:500; }
+  .nav-tabs .nav-link:hover { color:#ECE4D3 !important; }
+  .nav-tabs .nav-link.active { color:#D9A441 !important; background:transparent !important;
+      border-bottom:2px solid #D9A441 !important; }
   /* Table filter inputs */
-  .dash-table-container input { color:#ECE9E1 !important; }
-  .dash-filter input::placeholder { color:#6B7280 !important; }
+  .dash-table-container input { color:#ECE4D3 !important; }
+  .dash-filter input::placeholder { color:#8A8068 !important; }
 </style>
 </head>
 <body>{%app_entry%}<footer>{%config%}{%scripts%}{%renderer%}</footer></body>
@@ -638,11 +642,18 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
     # ---- KPI cards (summarise the current filter) ----
     dbc.Row([
         dbc.Col(kpi("Films shown", "kpi-films", GOLD), md=2, xs=6),
-        dbc.Col(kpi("Avg rating", "kpi-rating", TEAL), md=2, xs=6),
-        dbc.Col(kpi("Median return", "kpi-mult", BLUE), md=2, xs=6),
-        dbc.Col(kpi("Median ROI %", "kpi-roi", GOLD), md=2, xs=6),
-        dbc.Col(kpi("Total profit", "kpi-profit", TEAL), md=2, xs=6),
-        dbc.Col(kpi("Hit rate", "kpi-hits", BLUE), md=2, xs=6),
+        dbc.Col(kpi("Avg rating", "kpi-rating", TEAL,
+                    tip="Average audience rating (out of 10)."), md=2, xs=6),
+        dbc.Col(kpi("Median return", "kpi-mult", ORANGE,
+                    tip="Typical revenue as a multiple of budget (e.g. 1.7× = $1.70 back per $1)."),
+                md=2, xs=6),
+        dbc.Col(kpi("Total box office", "kpi-box", GOLD,
+                    tip="Combined worldwide revenue of all films in the current selection."),
+                md=2, xs=6),
+        dbc.Col(kpi("Total profit", "kpi-profit", TEAL,
+                    tip="Combined revenue minus combined budget."), md=2, xs=6),
+        dbc.Col(kpi("Hits (2×+)", "kpi-hits", ORANGE,
+                    tip="Share of films that earned at least 2× their budget back."), md=2, xs=6),
     ], className="g-2 my-3"),
 
     # ---- filters ----
@@ -683,7 +694,7 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
                          dcc.Dropdown(id="cmp-a", options=PICKER_OPTS,
                                       value=int(MARQUEE["film_id"]), optionHeight=34,
                                       placeholder="Choose a film…")], md=6),
-                dbc.Col([html.Small("FILM B", className="fw-bold", style={"color": BLUE}),
+                dbc.Col([html.Small("FILM B", className="fw-bold", style={"color": TEAL}),
                          dcc.Dropdown(id="cmp-b", options=PICKER_OPTS,
                                       value=int(MARQUEE2["film_id"]), optionHeight=34,
                                       placeholder="Choose a film…")], md=6),
@@ -708,7 +719,7 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
                             "textOverflow": "ellipsis", "border": "none", "color": INK,
                             "backgroundColor": PANEL,
                             "borderBottom": f"1px solid {BORDER}", "cursor": "pointer"},
-                style_data_conditional=[{"if": {"row_index": "odd"}, "backgroundColor": "#20242C"},
+                style_data_conditional=[{"if": {"row_index": "odd"}, "backgroundColor": "#221C12"},
                                         {"if": {"state": "active"},
                                          "backgroundColor": PANEL_HI, "border": f"1px solid {GOLD}"}],
                 style_filter={"backgroundColor": PANEL_HI, "color": INK}),
@@ -732,7 +743,7 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
 
     html.P("Built with Dash + Plotly on PostgreSQL · data from TMDB. This product uses the "
            "TMDB API but is not endorsed or certified by TMDB.",
-           className="text-center mt-3 mb-1", style={"fontSize": "0.74rem", "color": "#9AA1AC"}),
+           className="text-center mt-3 mb-1", style={"fontSize": "0.74rem", "color": "#8A8068"}),
 ])
 
 
@@ -741,7 +752,7 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
 # ===========================================================================
 @app.callback(
     Output("kpi-films", "children"), Output("kpi-rating", "children"),
-    Output("kpi-mult", "children"), Output("kpi-roi", "children"),
+    Output("kpi-mult", "children"), Output("kpi-box", "children"),
     Output("kpi-profit", "children"), Output("kpi-hits", "children"),
     Output("g-scatter", "figure"), Output("g-band", "figure"),
     Output("g-genre-bar", "figure"),
@@ -756,9 +767,10 @@ def update(genres, decades, tiers, year_range):
     df = apply_filters(FILMS, genres, decades, tiers, year_range)
     if df.empty:
         e = style(go.Figure(), "No films match the current filters")
-        return ("0", "—", "—", "—", "$0", "—", e, e, e, e, e, e, e, e, e, [])
+        return ("0", "—", "—", "$0", "$0", "—", e, e, e, e, e, e, e, e, e, [])
 
     profit_txt = money(df["profit"].sum())
+    box_txt = money(df["revenue"].sum())
     hits = (df["performance"] == "Hit (>=2x)").mean() * 100
     g = genre_rollup(df, genres)
     table = (df.sort_values("profit", ascending=False)
@@ -767,14 +779,14 @@ def update(genres, decades, tiers, year_range):
 
     return (
         f"{len(df):,}", f"{df['vote_average'].mean():.2f}",
-        f"{df['revenue_multiple'].median():.1f}×", f"{df['roi_pct'].median():.0f}%",
+        f"{df['revenue_multiple'].median():.1f}×", box_txt,
         profit_txt, f"{hits:.0f}%",
         fig_scatter(df), fig_rating_band(df), fig_genre_bar(g),
         fig_tier_bars(df), fig_perf_donut(df),
         fig_leaderboard(df, "revenue", "Biggest box office", color=GOLD),
         fig_leaderboard(df, "profit", "Biggest profit", color=TEAL),
         fig_leaderboard(df, "revenue_multiple", "Best return on budget (budget ≥ $10M)",
-                        money_fmt=False, suffix="×", color=BLUE, min_budget=10_000_000),
+                        money_fmt=False, suffix="×", color=ORANGE, min_budget=10_000_000),
         fig_leaderboard(df, "profit", "Biggest losses", largest=False, color=RED),
         table,
     )
