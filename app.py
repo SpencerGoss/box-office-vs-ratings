@@ -34,17 +34,28 @@ from sqlalchemy import create_engine, text
 # ===========================================================================
 load_dotenv()
 
-INK = "#1F2A37"
-MUTED = "#6B7280"
-GRID = "#ECEEF2"
-BORDER = "#E4E7EB"      # hairline card border (replaces drop-shadows)
-ACCENT = "#1F4E79"
-PALETTE = ["#1F4E79", "#2E8B8B", "#C9923E", "#7D5BA6", "#B5524B", "#4A6FA5"]
+# ---- "movie theater" palette: charcoal canvas, cinema-gold accent, curtain red ----
+BG = "#13161B"          # theater-dark page background
+PANEL = "#1C2027"       # cards / chart panels
+PANEL_HI = "#242932"    # table header, hover, raised bits
+BORDER = "#2C313B"      # subtle border on dark
+INK = "#ECE9E1"         # warm off-white (primary text)
+MUTED = "#9098A4"       # muted grey text
+GRID = "#262B34"        # chart gridlines on dark
+GOLD = "#D7A33F"        # cinema gold — primary accent (marquee / awards)
+RED = "#C0524A"         # curtain red — losses / negatives
+BLUE = "#5E8CB3"        # muted steel-blue — secondary series
+TEAL = "#3FA39B"        # green-teal — "good"/winner
+ACCENT = GOLD
+PAGE_BG = BG
+SHADOW = "0 2px 8px rgba(0,0,0,0.40)"
 FONT = "Inter, Segoe UI, Helvetica, Arial, sans-serif"
+HEAD_FONT = "Oswald, Inter, sans-serif"   # condensed, movie-poster feel for titles
+PALETTE = [GOLD, BLUE, TEAL, RED, "#B07CC6", "#6FA8A0"]
 
 TIER_ORDER = ["Low (<$10M)", "Mid ($10-50M)", "High ($50-150M)", "Blockbuster (>=$150M)"]
 PERF_ORDER = ["Flop (<1x)", "Profitable (1-2x)", "Hit (>=2x)"]
-PERF_COLORS = {"Flop (<1x)": "#B5524B", "Profitable (1-2x)": "#C9923E", "Hit (>=2x)": "#2E8B8B"}
+PERF_COLORS = {"Flop (<1x)": RED, "Profitable (1-2x)": GOLD, "Hit (>=2x)": TEAL}
 
 FILMS_SQL = text("""
     SELECT v.film_id, v.title, v.imdb_id, v.release_year,
@@ -113,9 +124,11 @@ YEAR_MIN, YEAR_MAX = int(FILMS["release_year"].min()), int(FILMS["release_year"]
 # Film-picker options (value = film_id), sorted by popularity-ish (vote_count).
 PICKER_OPTS = [{"label": f"{r.title} ({r.release_year})", "value": int(r.film_id)}
                for r in FILMS.sort_values("vote_count", ascending=False).itertuples()]
-# Marquee film for the opening spotlight — the highest-grossing title, so the demo
-# loads on something instantly recognizable instead of an empty prompt.
-MARQUEE = FILMS.loc[FILMS["revenue"].idxmax()]
+# Marquee films — highest grossers, so the spotlight and the compare tab both open on
+# something instantly recognizable instead of empty prompts.
+_BY_REVENUE = FILMS.sort_values("revenue", ascending=False)
+MARQUEE = _BY_REVENUE.iloc[0]
+MARQUEE2 = _BY_REVENUE.iloc[1]
 
 
 # ===========================================================================
@@ -148,12 +161,12 @@ def genre_rollup(df, genres):
 
 def style(fig, title, height=430):
     fig.update_layout(
-        title=dict(text=title, font=dict(size=15, color=INK, family=FONT), x=0.01, xanchor="left"),
-        template="plotly_white", font=dict(family=FONT, color=MUTED, size=12),
+        title=dict(text=title, font=dict(size=15, color=INK, family=HEAD_FONT), x=0.01, xanchor="left"),
+        template="plotly_dark", font=dict(family=FONT, color=MUTED, size=12),
         height=height, margin=dict(l=55, r=20, t=50, b=45),
-        legend=dict(font=dict(size=11), bgcolor="rgba(0,0,0,0)"),
-        colorway=PALETTE, paper_bgcolor="white", plot_bgcolor="white",
-        hoverlabel=dict(font=dict(family=FONT)))
+        legend=dict(font=dict(size=11, color=INK), bgcolor="rgba(0,0,0,0)"),
+        colorway=PALETTE, paper_bgcolor=PANEL, plot_bgcolor=PANEL,
+        hoverlabel=dict(font=dict(family=FONT), bgcolor=PANEL_HI, bordercolor=BORDER))
     fig.update_xaxes(gridcolor=GRID, zerolinecolor=GRID, linecolor=GRID)
     fig.update_yaxes(gridcolor=GRID, zerolinecolor=GRID, linecolor=GRID)
     return fig
@@ -184,7 +197,7 @@ def fig_rating_band(df):
     b = (d.groupby("band", observed=True)
            .agg(roi=("roi_pct", "median"), n=("film_id", "count")).reset_index())
     fig = px.bar(b, x="band", y="roi", text="roi",
-                 color="roi", color_continuous_scale=["#B5524B", "#C9923E", "#2E8B8B"],
+                 color="roi", color_continuous_scale=[RED, GOLD, TEAL],
                  labels={"band": "Audience rating", "roi": "Median ROI %"})
     fig.update_traces(texttemplate="%{text:.0f}%", textposition="outside")
     fig.update_layout(coloraxis_showscale=False)
@@ -221,7 +234,7 @@ def fig_genre_scatter(g):
 def fig_genre_bar(g):
     gg = g.sort_values("median_roi_pct")
     fig = px.bar(gg, x="median_roi_pct", y="genre", orientation="h", color="median_roi_pct",
-                 color_continuous_scale=["#B5524B", "#C9923E", "#2E8B8B"],
+                 color_continuous_scale=[RED, GOLD, TEAL],
                  labels={"median_roi_pct": "Median ROI %", "genre": ""})
     fig.update_layout(coloraxis_showscale=False)
     return style(fig, "Median return by genre", height=470)
@@ -263,16 +276,24 @@ def fig_leaderboard(df, value_col, title, *, n=10, largest=True, money_fmt=True,
     if d.empty:
         return style(go.Figure(), title, height=height)
     text = d[value_col].map(money) if money_fmt else d[value_col].map(lambda v: f"{v:,.1f}{suffix}")
+    short = [t if len(t) <= 26 else t[:25] + "…" for t in d["title"]]  # keep long titles off the bars
+    # Negative (loss) bars grow leftward toward the axis labels, so anchor their value
+    # labels INSIDE at the zero end (white text); positive bars label outside on the right.
+    negative = bool((d[value_col] < 0).any())
     fig = go.Figure(go.Bar(
         x=d[value_col], y=d["title"], orientation="h", marker_color=color,
-        customdata=d["film_id"], text=text, textposition="outside", cliponaxis=False,
+        customdata=d["film_id"], text=text,
+        textposition="inside" if negative else "outside", insidetextanchor="start",
+        textfont=dict(color="white" if negative else INK, size=11), cliponaxis=False,
         hovertext=[f"{t} ({int(y)}) · ⭐ {r:.1f}" for t, y, r
                    in zip(d["title"], d["release_year"], d["vote_average"])],
         hoverinfo="text"))
-    fig.update_yaxes(tickfont=dict(size=10), automargin=True)
+    fig.update_yaxes(tickmode="array", tickvals=list(d["title"]), ticktext=short,
+                     tickfont=dict(size=10), automargin=True)
     fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False)
-    pad = (d[value_col].max() - min(0, d[value_col].min())) * 0.18 or 1
-    fig.update_xaxes(range=[min(0, d[value_col].min()) - pad * 0.3, d[value_col].max() + pad])
+    lo, hi = min(0, d[value_col].min()), max(0, d[value_col].max())
+    pad = (hi - lo) * 0.18 or 1
+    fig.update_xaxes(range=[lo - pad * 0.2, hi + pad])
     return style(fig, title, height=height)
 
 
@@ -297,7 +318,7 @@ def stat(label, value, color=INK):
 
 
 def film_detail(row):
-    profit_color = "#2E8B8B" if row["profit"] >= 0 else "#B5524B"
+    profit_color = TEAL if row["profit"] >= 0 else RED
     imdb = (html.A("View on IMDb ↗", href=f"https://www.imdb.com/title/{row['imdb_id']}/",
                    target="_blank", style={"fontSize": "0.8rem"})
             if isinstance(row.get("imdb_id"), str) and row["imdb_id"] else "")
@@ -330,18 +351,82 @@ DETAIL_PROMPT = html.Div(
 
 
 # ===========================================================================
+# Compare two films (head-to-head)
+# ===========================================================================
+def fig_compare(a, b):
+    metrics = ["Budget", "Revenue", "Profit"]
+    fig = go.Figure()
+    for film, colr in ((a, GOLD), (b, BLUE)):
+        vals = [film["budget"], film["revenue"], film["profit"]]
+        fig.add_trace(go.Bar(
+            name=film["title"][:28], x=metrics, y=vals, marker_color=colr,
+            text=[money(v) for v in vals], textposition="outside",
+            textfont=dict(size=11), cliponaxis=False))
+    fig.update_layout(barmode="group", legend=dict(orientation="h", y=1.16, x=1,
+                                                    xanchor="right", yanchor="top"),
+                      bargap=0.32, bargroupgap=0.12)
+    fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=True, zerolinecolor=GRID)
+    fig.update_xaxes(tickfont=dict(size=12, color=INK))
+    return style(fig, "Budget · Revenue · Profit", height=420)
+
+
+def _cmp_cell(text, win):
+    return html.Td(text, style={
+        "padding": "9px 12px", "textAlign": "right", "fontVariantNumeric": "tabular-nums",
+        "fontWeight": 700 if win else 500, "color": TEAL if win else INK,
+        "borderBottom": f"1px solid {BORDER}"})
+
+
+def compare_stats(a, b):
+    rt = lambda r: f"{int(r['runtime'])} min" if pd.notna(r["runtime"]) else "—"
+    rows = [  # (label, a-text, b-text, a-value, b-value, higher-is-better)
+        ("Audience rating", f"{a['vote_average']:.1f}", f"{b['vote_average']:.1f}",
+         a["vote_average"], b["vote_average"]),
+        ("Return (× budget)", f"{a['revenue_multiple']:.1f}×", f"{b['revenue_multiple']:.1f}×",
+         a["revenue_multiple"], b["revenue_multiple"]),
+        ("ROI", f"{a['roi_pct']:.0f}%", f"{b['roi_pct']:.0f}%", a["roi_pct"], b["roi_pct"]),
+        ("Profit", money(a["profit"]), money(b["profit"]), a["profit"], b["profit"]),
+        ("Votes", f"{int(a['vote_count']):,}", f"{int(b['vote_count']):,}",
+         a["vote_count"], b["vote_count"]),
+        ("Runtime", rt(a), rt(b), 0, 0),
+    ]
+    head = html.Tr([
+        html.Th("", style={"padding": "9px 12px", "borderBottom": f"2px solid {ACCENT}"}),
+        html.Th(a["title"], style={"padding": "9px 12px", "textAlign": "right", "color": ACCENT,
+                                   "fontSize": "0.84rem", "borderBottom": f"2px solid {ACCENT}"}),
+        html.Th(b["title"], style={"padding": "9px 12px", "textAlign": "right", "color": BLUE,
+                                   "fontSize": "0.84rem", "borderBottom": f"2px solid {BLUE}"}),
+    ])
+    body = []
+    for label, at, bt, av, bv in rows:
+        body.append(html.Tr([
+            html.Td(label, style={"padding": "9px 12px", "color": MUTED, "fontSize": "0.82rem",
+                                  "textTransform": "uppercase", "letterSpacing": "0.4px",
+                                  "borderBottom": f"1px solid {BORDER}"}),
+            _cmp_cell(at, av > bv), _cmp_cell(bt, bv > av),
+        ]))
+    return html.Table([html.Thead(head), html.Tbody(body)],
+                      style={"width": "100%", "borderCollapse": "collapse"})
+
+
+COMPARE_PROMPT = html.Div("Pick a film on each side to compare them.",
+                          className="text-muted py-3", style={"fontSize": "0.9rem"})
+
+
+# ===========================================================================
 # UI helpers
 # ===========================================================================
-def kpi(title, idd):
-    """One uniform metric tile — no per-card accent colour (the rainbow look reads as a
-    template). Restraint: hairline border, ink number, muted label. The data is the colour."""
+def kpi(title, idd, accent=ACCENT):
+    """Metric tile with depth (soft shadow) and a single cohesive accent — a coloured top
+    rule + coloured value, same hue family across all tiles (branded, not the old rainbow)."""
     return dbc.Card(dbc.CardBody([
         html.Div(title, className="text-uppercase",
                  style={"fontSize": "0.68rem", "letterSpacing": "0.7px", "color": MUTED, "fontWeight": 600}),
-        html.Div(id=idd, style={"fontSize": "1.5rem", "fontWeight": 700, "color": INK,
+        html.Div(id=idd, style={"fontSize": "1.55rem", "fontWeight": 700, "color": accent,
                                 "lineHeight": "1.15", "marginTop": "4px"}),
     ], style={"padding": "0.85rem 1rem"}), className="h-100",
-        style={"border": f"1px solid {BORDER}", "borderRadius": "8px", "backgroundColor": "white"})
+        style={"border": f"1px solid {BORDER}", "borderTop": f"3px solid {accent}",
+               "borderRadius": "8px", "backgroundColor": PANEL, "boxShadow": SHADOW})
 
 
 def dd(idd, options, placeholder):
@@ -357,7 +442,7 @@ def graph(idd, height="44vh"):
 def card(body, **kw):
     return dbc.Card(dbc.CardBody(body),
                     style={"border": f"1px solid {BORDER}", "borderRadius": "8px",
-                           "backgroundColor": "white", **kw})
+                           "backgroundColor": PANEL, "boxShadow": SHADOW, **kw})
 
 
 TABLE_COLS = [
@@ -379,23 +464,74 @@ TABLE_COLS = [
 app = Dash(__name__, external_stylesheets=[dbc.themes.FLATLY], title="Box Office vs. Ratings")
 server = app.server
 
+# Dark "movie theater" theming for the bits Python styles can't reach: the condensed
+# title font, and the Dash 3 native dropdown / slider / tabs / table-filter controls.
+app.index_string = """<!DOCTYPE html>
+<html>
+<head>
+{%metas%}<title>Box Office vs. Ratings</title>{%favicon%}{%css%}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html, body { background:#13161B; color:#ECE9E1; }
+  ::selection { background:#D7A33F; color:#13161B; }
+  /* Dropdown (Dash 3 native) */
+  .dash-dropdown, .dash-dropdown-trigger { background:#1C2027 !important; border-color:#2C313B !important;
+      color:#ECE9E1 !important; border-radius:6px; }
+  .dash-dropdown-value, .dash-dropdown-value-item span, .dash-dropdown-placeholder { color:#ECE9E1 !important; }
+  /* open menu popup */
+  .dash-dropdown-content { background:#1C2027 !important; color:#ECE9E1 !important;
+      border:1px solid #2C313B !important; }
+  .dash-dropdown-search { background:#13161B !important; color:#ECE9E1 !important;
+      border:1px solid #2C313B !important; }
+  .dash-options-list, .dash-dropdown-options { background:#1C2027 !important; color:#ECE9E1 !important; }
+  .dash-options-list-option, .dash-dropdown-option { color:#ECE9E1 !important; background:transparent !important; }
+  .dash-options-list-option:hover, .dash-dropdown-option:hover { background:#242932 !important;
+      color:#D7A33F !important; }
+  .dash-dropdown-action-button { color:#D7A33F !important; background:transparent !important; }
+  /* Range slider (Dash 3 native) */
+  .dash-slider-track { background:#2C313B !important; }
+  .dash-slider-range { background:#D7A33F !important; }
+  .dash-slider-handle { background:#D7A33F !important; border-color:#D7A33F !important; }
+  .dash-slider-mark-text { color:#9098A4 !important; }
+  .dash-range-slider-input { background:#1C2027 !important; color:#ECE9E1 !important; border-color:#2C313B !important; }
+  /* Tabs */
+  .nav-tabs { border-bottom:1px solid #2C313B !important; }
+  .nav-tabs .nav-link { color:#9098A4 !important; border:none !important; font-weight:500; }
+  .nav-tabs .nav-link:hover { color:#ECE9E1 !important; }
+  .nav-tabs .nav-link.active { color:#D7A33F !important; background:transparent !important;
+      border-bottom:2px solid #D7A33F !important; }
+  /* Table filter inputs */
+  .dash-table-container input { color:#ECE9E1 !important; }
+  .dash-filter input::placeholder { color:#6B7280 !important; }
+</style>
+</head>
+<body>{%app_entry%}<footer>{%config%}{%scripts%}{%renderer%}</footer></body>
+</html>"""
+
 app.layout = dbc.Container(fluid=True, className="px-4 py-3",
-                           style={"backgroundColor": "#F7F8FA", "fontFamily": FONT,
+                           style={"backgroundColor": PAGE_BG, "fontFamily": FONT,
                                   "minHeight": "100vh"}, children=[
 
-    dbc.Row([
+    # ---- header (movie-marquee: gold accent rule + condensed title on dark) ----
+    html.Div(dbc.Row([
         dbc.Col([
-            html.H3("Box Office vs. Ratings", className="fw-bold mb-1",
-                    style={"color": INK, "letterSpacing": "-0.4px"}),
-            html.Div(style={"height": "3px", "width": "54px", "background": ACCENT,
-                            "borderRadius": "2px", "marginBottom": "8px"}),
-            html.P(f"Explore the budgets, box-office returns and audience ratings of {len(FILMS):,} "
-                   f"films (2000–2026). {DATA_SOURCE} · TMDB data.",
+            html.Div("BOX OFFICE vs. RATINGS",
+                     style={"color": INK, "fontFamily": HEAD_FONT, "fontWeight": 600,
+                            "fontSize": "1.9rem", "letterSpacing": "1.5px", "lineHeight": "1.1"}),
+            html.Div(style={"height": "3px", "width": "70px", "background": GOLD,
+                            "margin": "7px 0 9px"}),
+            html.P(f"Do better films make more money? {len(FILMS):,} films, 2000–2026.  "
+                   f"·  {DATA_SOURCE} · TMDB",
                    className="mb-0", style={"fontSize": "0.86rem", "color": MUTED}),
-        ], md=9),
-        dbc.Col(dbc.Button("Refresh data", id="refresh", color="secondary", outline=True,
-                           size="sm", className="float-end mt-2"), md=3),
-    ], className="mb-3 align-items-center"),
+        ], md=9, className="d-flex flex-column justify-content-center"),
+        dbc.Col(dbc.Button("↻ Refresh data", id="refresh", color="warning", outline=True,
+                           size="sm", className="float-end"), md=3,
+                className="d-flex align-items-center justify-content-end"),
+    ], className="align-items-center g-0"),
+        style={"background": PANEL, "border": f"1px solid {BORDER}", "borderRadius": "10px",
+               "padding": "1.15rem 1.4rem", "marginBottom": "1.1rem", "boxShadow": SHADOW}),
 
     # ---- film spotlight (search a specific movie) ----
     card([
@@ -412,12 +548,12 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
 
     # ---- KPI cards (summarise the current filter) ----
     dbc.Row([
-        dbc.Col(kpi("Films shown", "kpi-films"), md=2, xs=6),
-        dbc.Col(kpi("Avg rating", "kpi-rating"), md=2, xs=6),
-        dbc.Col(kpi("Median return", "kpi-mult"), md=2, xs=6),
-        dbc.Col(kpi("Median ROI %", "kpi-roi"), md=2, xs=6),
-        dbc.Col(kpi("Total profit", "kpi-profit"), md=2, xs=6),
-        dbc.Col(kpi("Hit rate", "kpi-hits"), md=2, xs=6),
+        dbc.Col(kpi("Films shown", "kpi-films", GOLD), md=2, xs=6),
+        dbc.Col(kpi("Avg rating", "kpi-rating", TEAL), md=2, xs=6),
+        dbc.Col(kpi("Median return", "kpi-mult", BLUE), md=2, xs=6),
+        dbc.Col(kpi("Median ROI %", "kpi-roi", GOLD), md=2, xs=6),
+        dbc.Col(kpi("Total profit", "kpi-profit", TEAL), md=2, xs=6),
+        dbc.Col(kpi("Hit rate", "kpi-hits", BLUE), md=2, xs=6),
     ], className="g-2 my-3"),
 
     # ---- filters ----
@@ -449,6 +585,25 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
                 dbc.Col(graph("g-top-loss", "42vh"), lg=6),
             ], className="g-3 mt-0"),
         ]),
+        dbc.Tab(label="Compare films", tab_id="t-compare", children=[
+            html.P("Pick any two films to see their money and ratings head-to-head — "
+                   "the better value in each row is highlighted.",
+                   className="mt-2 mb-2", style={"fontSize": "0.82rem", "color": MUTED}),
+            dbc.Row([
+                dbc.Col([html.Small("FILM A", className="fw-bold", style={"color": ACCENT}),
+                         dcc.Dropdown(id="cmp-a", options=PICKER_OPTS,
+                                      value=int(MARQUEE["film_id"]), optionHeight=34,
+                                      placeholder="Choose a film…")], md=6),
+                dbc.Col([html.Small("FILM B", className="fw-bold", style={"color": BLUE}),
+                         dcc.Dropdown(id="cmp-b", options=PICKER_OPTS,
+                                      value=int(MARQUEE2["film_id"]), optionHeight=34,
+                                      placeholder="Choose a film…")], md=6),
+            ], className="g-3"),
+            dbc.Row([
+                dbc.Col(graph("g-compare", "44vh"), lg=7),
+                dbc.Col(html.Div(id="compare-stats", className="mt-4 mt-lg-0"), lg=5),
+            ], className="g-3 mt-1 align-items-center"),
+        ]),
         dbc.Tab(label="Browse films", tab_id="t-browse", children=[
             html.P("Search any column, sort by a header, or click a row to open a film.",
                    className="mt-2 mb-2", style={"fontSize": "0.82rem", "color": MUTED}),
@@ -456,28 +611,39 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
                 id="film-table", columns=TABLE_COLS, sort_action="native",
                 filter_action="native", page_size=12, page_action="native",
                 cell_selectable=True, style_as_list_view=True,
-                style_header={"backgroundColor": INK, "color": "white", "fontWeight": "600",
-                              "border": "none", "fontSize": "0.8rem"},
+                style_header={"backgroundColor": PANEL_HI, "color": GOLD, "fontWeight": "600",
+                              "border": "none", "borderBottom": f"1px solid {BORDER}",
+                              "fontSize": "0.8rem", "textTransform": "uppercase"},
                 style_cell={"fontFamily": FONT, "fontSize": "0.82rem", "padding": "7px 10px",
                             "textAlign": "left", "maxWidth": 230, "overflow": "hidden",
-                            "textOverflow": "ellipsis", "border": "none",
-                            "borderBottom": "1px solid #F0F1F4", "cursor": "pointer"},
-                style_data_conditional=[{"if": {"row_index": "odd"}, "backgroundColor": "#FAFBFC"}],
-                style_filter={"backgroundColor": "#F3F4F6"}),
+                            "textOverflow": "ellipsis", "border": "none", "color": INK,
+                            "backgroundColor": PANEL,
+                            "borderBottom": f"1px solid {BORDER}", "cursor": "pointer"},
+                style_data_conditional=[{"if": {"row_index": "odd"}, "backgroundColor": "#20242C"},
+                                        {"if": {"state": "active"},
+                                         "backgroundColor": PANEL_HI, "border": f"1px solid {GOLD}"}],
+                style_filter={"backgroundColor": PANEL_HI, "color": INK}),
         ]),
-        dbc.Tab(label="Ratings vs. returns", tab_id="t-rr", children=dbc.Row([
-            dbc.Col(graph("g-scatter"), lg=7), dbc.Col(graph("g-band"), lg=5),
-        ], className="g-3 mt-1")),
-        dbc.Tab(label="By genre", tab_id="t-genre", children=dbc.Row([
-            dbc.Col(graph("g-genre-scatter", "48vh"), lg=7),
-            dbc.Col(graph("g-genre-bar", "48vh"), lg=5),
-        ], className="g-3 mt-1")),
-        dbc.Tab(label="By budget", tab_id="t-budget", children=dbc.Row([
-            dbc.Col(graph("g-tier"), lg=8), dbc.Col(graph("g-perf"), lg=4),
-        ], className="g-3 mt-1")),
-        dbc.Tab(label="Over time", tab_id="t-time", children=dbc.Row([
-            dbc.Col(graph("g-trend"), lg=12),
-        ], className="g-3 mt-1")),
+        dbc.Tab(label="Ratings vs. returns", tab_id="t-rr", children=[
+            html.P("The core question: does a higher audience rating mean a bigger return? "
+                   "Each point is a film — click one to open it.",
+                   className="mt-2 mb-2", style={"fontSize": "0.82rem", "color": MUTED}),
+            dbc.Row([dbc.Col(graph("g-scatter"), lg=7), dbc.Col(graph("g-band"), lg=5)],
+                    className="g-3")]),
+        dbc.Tab(label="By genre", tab_id="t-genre", children=[
+            html.P("Which genres earn the most per dollar — and how well are they rated?",
+                   className="mt-2 mb-2", style={"fontSize": "0.82rem", "color": MUTED}),
+            dbc.Row([dbc.Col(graph("g-genre-scatter", "48vh"), lg=7),
+                     dbc.Col(graph("g-genre-bar", "48vh"), lg=5)], className="g-3")]),
+        dbc.Tab(label="By budget", tab_id="t-budget", children=[
+            html.P("How ratings and returns shift as budgets grow, and the hit / flop mix.",
+                   className="mt-2 mb-2", style={"fontSize": "0.82rem", "color": MUTED}),
+            dbc.Row([dbc.Col(graph("g-tier"), lg=8), dbc.Col(graph("g-perf"), lg=4)],
+                    className="g-3")]),
+        dbc.Tab(label="Over time", tab_id="t-time", children=[
+            html.P("How average ratings and median returns have moved year by year.",
+                   className="mt-2 mb-2", style={"fontSize": "0.82rem", "color": MUTED}),
+            dbc.Row([dbc.Col(graph("g-trend"), lg=12)], className="g-3")]),
     ])), className="mt-3"),
 
     html.P("Built with Dash + Plotly on PostgreSQL · data from TMDB. This product uses the "
@@ -521,11 +687,11 @@ def update(genres, decades, tiers, year_range):
         profit_txt, f"{hits:.0f}%",
         fig_scatter(df), fig_rating_band(df), fig_genre_scatter(g), fig_genre_bar(g),
         fig_tier_bars(df), fig_perf_donut(df), fig_trend(df),
-        fig_leaderboard(df, "revenue", "Biggest box office", color=PALETTE[0]),
-        fig_leaderboard(df, "profit", "Biggest profit", color="#2E8B8B"),
+        fig_leaderboard(df, "revenue", "Biggest box office", color=GOLD),
+        fig_leaderboard(df, "profit", "Biggest profit", color=TEAL),
         fig_leaderboard(df, "revenue_multiple", "Best return on budget (budget ≥ $10M)",
-                        money_fmt=False, suffix="×", color=PALETTE[2], min_budget=10_000_000),
-        fig_leaderboard(df, "profit", "Biggest losses", largest=False, color="#B5524B"),
+                        money_fmt=False, suffix="×", color=BLUE, min_budget=10_000_000),
+        fig_leaderboard(df, "profit", "Biggest losses", largest=False, color=RED),
         table,
     )
 
@@ -571,6 +737,21 @@ def spotlight(picker_id, *args):
     # Don't echo a value back to the picker when the picker (or initial load) is the source.
     new_value = no_update if trig in (None, "film-picker") else fid
     return film_detail(row.iloc[0]), new_value
+
+
+@app.callback(
+    Output("g-compare", "figure"), Output("compare-stats", "children"),
+    Input("cmp-a", "value"), Input("cmp-b", "value"),
+)
+def compare(a_id, b_id):
+    if not a_id or not b_id:
+        return style(go.Figure(), "Budget · Revenue · Profit", height=420), COMPARE_PROMPT
+    ra = FILMS[FILMS["film_id"] == int(a_id)]
+    rb = FILMS[FILMS["film_id"] == int(b_id)]
+    if ra.empty or rb.empty:
+        return style(go.Figure(), "Budget · Revenue · Profit", height=420), COMPARE_PROMPT
+    a, b = ra.iloc[0], rb.iloc[0]
+    return fig_compare(a, b), compare_stats(a, b)
 
 
 @app.callback(Output("f-year", "value"), Input("refresh", "n_clicks"),
