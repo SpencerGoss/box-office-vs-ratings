@@ -38,17 +38,17 @@ load_dotenv()
 
 # ---- "movie theater" palette: warm espresso canvas + the classic teal-and-orange
 # film-grading scheme (cinema gold/amber warm, teal as the complementary cool) ----
-BG = "#15120C"          # warm espresso-charcoal (a dim theater)
-PANEL = "#1F1A12"       # warm dark — cards / chart panels
-PANEL_HI = "#2A2318"    # table header, hover, raised bits
-BORDER = "#352D20"      # subtle warm border
-INK = "#ECE4D3"         # warm cream (primary text)
-MUTED = "#A99E88"       # warm grey text
-GRID = "#2B2417"        # chart gridlines
-GOLD = "#D9A441"        # marquee gold — primary (box office, hits)
-ORANGE = "#D07C38"      # warm amber — secondary (returns, ROI)
-TEAL = "#46A7A0"        # complementary cool — the teal of teal-and-orange grading
-RED = "#C24A42"         # curtain crimson — losses / flops
+BG = "#14110A"          # warm espresso-charcoal (a dim theater)
+PANEL = "#211B11"       # warm dark — cards / chart panels
+PANEL_HI = "#2D2616"    # table header, hover, raised bits
+BORDER = "#3A3122"      # subtle warm border
+INK = "#F5EEDD"         # warm cream (primary text)
+MUTED = "#B4A98E"       # warm grey text
+GRID = "#2E2718"        # chart gridlines
+GOLD = "#F2B32E"        # vivid marquee gold — primary (box office, hits)
+ORANGE = "#F0801F"      # vivid amber-orange — secondary (returns, ROI)
+TEAL = "#1FC3AE"        # vivid teal — the cool of teal-and-orange grading
+RED = "#EA4A39"         # vivid crimson — losses / flops
 ACCENT = GOLD
 PAGE_BG = BG
 SHADOW = "0 2px 10px rgba(0,0,0,0.50)"
@@ -473,7 +473,7 @@ def poster_block(row):
 
 def film_meta(row):
     perf_color = PERF_COLORS.get(row["performance"], MUTED)
-    badge_text = "#15120C" if perf_color == GOLD else "white"
+    badge_text = "#14110A" if perf_color == GOLD else "white"
     rt = f"{int(row['runtime'])} min" if pd.notna(row["runtime"]) else "—"
     return html.Div([
         html.Span(row["title"], style={"fontFamily": HEAD_FONT, "fontWeight": 600,
@@ -558,38 +558,34 @@ app.index_string = """<!DOCTYPE html>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  html, body { background:#15120C; color:#ECE4D3; }
-  ::selection { background:#D9A441; color:#15120C; }
+  html, body { background:#14110A; color:#F5EEDD; }
+  ::selection { background:#F2B32E; color:#14110A; }
   /* Dropdown (Dash 3 native) */
-  .dash-dropdown, .dash-dropdown-trigger { background:#1F1A12 !important; border-color:#352D20 !important;
-      color:#ECE4D3 !important; border-radius:6px; }
-  .dash-dropdown-value, .dash-dropdown-value-item span, .dash-dropdown-placeholder { color:#ECE4D3 !important; }
+  .dash-dropdown, .dash-dropdown-trigger { background:#211B11 !important; border-color:#3A3122 !important;
+      color:#F5EEDD !important; border-radius:6px; }
+  .dash-dropdown-value, .dash-dropdown-value-item span, .dash-dropdown-placeholder { color:#F5EEDD !important; }
   /* open menu popup */
-  .dash-dropdown-content { background:#1F1A12 !important; color:#ECE4D3 !important;
-      border:1px solid #352D20 !important; }
-  .dash-dropdown-search { background:#15120C !important; color:#ECE4D3 !important;
-      border:1px solid #352D20 !important; }
-  .dash-options-list, .dash-dropdown-options { background:#1F1A12 !important; color:#ECE4D3 !important; }
-  .dash-options-list-option, .dash-dropdown-option { color:#ECE4D3 !important; background:transparent !important; }
-  .dash-options-list-option:hover, .dash-dropdown-option:hover { background:#2A2318 !important;
-      color:#D9A441 !important; }
-  .dash-dropdown-action-button { color:#D9A441 !important; background:transparent !important; }
+  .dash-dropdown-content { background:#211B11 !important; color:#F5EEDD !important;
+      border:1px solid #3A3122 !important; }
+  .dash-dropdown-search { background:#14110A !important; color:#F5EEDD !important;
+      border:1px solid #3A3122 !important; }
+  .dash-options-list, .dash-dropdown-options { background:#211B11 !important; color:#F5EEDD !important; }
+  .dash-options-list-option, .dash-dropdown-option { color:#F5EEDD !important; background:transparent !important; }
+  .dash-options-list-option:hover, .dash-dropdown-option:hover { background:#2D2616 !important;
+      color:#F2B32E !important; }
+  .dash-dropdown-action-button { color:#F2B32E !important; background:transparent !important; }
   /* Range slider (Dash 3 native) */
-  .dash-slider-track { background:#352D20 !important; }
-  .dash-slider-range { background:#D9A441 !important; }
-  .dash-slider-handle { background:#D9A441 !important; border-color:#D9A441 !important; }
-  .dash-slider-mark-text { color:#A99E88 !important; }
-  .dash-range-slider-input { background:#1F1A12 !important; color:#ECE4D3 !important; border-color:#352D20 !important; }
+  .dash-slider-track { background:#3A3122 !important; }
+  .dash-slider-range { background:#F2B32E !important; }
+  .dash-slider-handle { background:#F2B32E !important; border-color:#F2B32E !important; }
+  .dash-slider-mark-text { color:#B4A98E !important; }
+  .dash-range-slider-input { background:#211B11 !important; color:#F5EEDD !important; border-color:#3A3122 !important; }
   /* Tabs */
-  .nav-tabs { border-bottom:1px solid #352D20 !important; }
-  .nav-tabs .nav-link { color:#A99E88 !important; border:none !important; font-weight:500; }
-  .nav-tabs .nav-link:hover { color:#ECE4D3 !important; }
-  .nav-tabs .nav-link.active { color:#D9A441 !important; background:transparent !important;
-      border-bottom:2px solid #D9A441 !important; }
-  /* Table filter inputs */
-  .dash-table-container input { color:#ECE4D3 !important; }
-  .dash-filter input::placeholder { color:#8A8068 !important; }
-  .dash-filter--case { display:none !important; }   /* hide the cryptic "Aa" case toggle */
+  .nav-tabs { border-bottom:1px solid #3A3122 !important; }
+  .nav-tabs .nav-link { color:#B4A98E !important; border:none !important; font-weight:500; }
+  .nav-tabs .nav-link:hover { color:#F5EEDD !important; }
+  .nav-tabs .nav-link.active { color:#F2B32E !important; background:transparent !important;
+      border-bottom:2px solid #F2B32E !important; }
 </style>
 </head>
 <body>{%app_entry%}<footer>{%config%}{%scripts%}{%renderer%}</footer></body>
@@ -706,12 +702,12 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
             ], className="g-3 mt-1 align-items-center"),
         ]),
         dbc.Tab(label="Browse films", tab_id="t-browse", children=[
-            html.P("Search any column, sort by a header, or click a row to open a film.",
+            html.P("Sorted by profit. Click any column header to re-sort, or click a row "
+                   "to open that film above. Use the filters above to narrow the list.",
                    className="mt-2 mb-2", style={"fontSize": "0.82rem", "color": MUTED}),
             dash_table.DataTable(
                 id="film-table", columns=TABLE_COLS, sort_action="native",
-                filter_action="native", page_size=12, page_action="native",
-                filter_options={"case": "insensitive", "placeholder_text": "filter…"},
+                page_size=12, page_action="native",
                 cell_selectable=True, style_as_list_view=True,
                 style_header={"backgroundColor": PANEL_HI, "color": GOLD, "fontWeight": "600",
                               "border": "none", "borderBottom": f"1px solid {BORDER}",
@@ -723,8 +719,7 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
                             "borderBottom": f"1px solid {BORDER}", "cursor": "pointer"},
                 style_data_conditional=[{"if": {"row_index": "odd"}, "backgroundColor": "#221C12"},
                                         {"if": {"state": "active"},
-                                         "backgroundColor": PANEL_HI, "border": f"1px solid {GOLD}"}],
-                style_filter={"backgroundColor": PANEL_HI, "color": INK}),
+                                         "backgroundColor": PANEL_HI, "border": f"1px solid {GOLD}"}]),
         ]),
         dbc.Tab(label="Ratings vs. returns", tab_id="t-rr", children=[
             html.P("The core question: does a higher audience rating mean a bigger return? "
