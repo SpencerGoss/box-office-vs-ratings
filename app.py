@@ -37,6 +37,7 @@ load_dotenv()
 INK = "#1F2A37"
 MUTED = "#6B7280"
 GRID = "#ECEEF2"
+BORDER = "#E4E7EB"      # hairline card border (replaces drop-shadows)
 ACCENT = "#1F4E79"
 PALETTE = ["#1F4E79", "#2E8B8B", "#C9923E", "#7D5BA6", "#B5524B", "#4A6FA5"]
 FONT = "Inter, Segoe UI, Helvetica, Arial, sans-serif"
@@ -63,15 +64,42 @@ FILMS_SQL = text("""
 """)
 
 
+CSV_FALLBACK = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "data", "films_for_powerbi.csv")
+DATA_SOURCE = "Live PostgreSQL"  # overwritten by load_films() if the DB is unreachable
+
+
 def get_engine():
     url = (f"postgresql+psycopg2://{os.environ['PG_USER']}:{os.environ['PG_PASSWORD']}"
            f"@{os.environ['PG_HOST']}:{os.environ['PG_PORT']}/{os.environ['PG_DATABASE']}")
     return create_engine(url, future=True)
 
 
-def load_films() -> pd.DataFrame:
+def _load_from_db() -> pd.DataFrame:
     with get_engine().connect() as conn:
-        df = pd.read_sql(FILMS_SQL, conn)
+        return pd.read_sql(FILMS_SQL, conn)
+
+
+def _load_from_csv() -> pd.DataFrame:
+    """Demo-safety fallback: the CSV snapshot mirrors v_films_enriched exactly, so a
+    Postgres hiccup mid-presentation can never blank the dashboard. Derives the few
+    columns the SQL computes server-side (revenue_multiple, roi_pct) from `roi`."""
+    df = pd.read_csv(CSV_FALLBACK).rename(columns={"tmdb_id": "film_id"})
+    df["revenue_multiple"] = df["roi"].round(2)
+    df["roi_pct"] = ((df["roi"] - 1) * 100).round(0)
+    return df
+
+
+def load_films() -> pd.DataFrame:
+    global DATA_SOURCE
+    try:
+        df = _load_from_db()
+        DATA_SOURCE = "Live PostgreSQL"
+    except Exception as exc:  # connection refused, auth, driver missing, etc.
+        print(f"[warn] Postgres unavailable ({type(exc).__name__}: {str(exc)[:80]}); "
+              f"loading CSV snapshot from {CSV_FALLBACK}")
+        df = _load_from_csv()
+        DATA_SOURCE = "CSV snapshot (Postgres offline)"
     df["budget_tier"] = pd.Categorical(df["budget_tier"], categories=TIER_ORDER, ordered=True)
     df["performance"] = pd.Categorical(df["performance"], categories=PERF_ORDER, ordered=True)
     df["genre_list"] = df["genres"].fillna("").apply(lambda s: [g for g in s.split(", ") if g])
@@ -85,6 +113,9 @@ YEAR_MIN, YEAR_MAX = int(FILMS["release_year"].min()), int(FILMS["release_year"]
 # Film-picker options (value = film_id), sorted by popularity-ish (vote_count).
 PICKER_OPTS = [{"label": f"{r.title} ({r.release_year})", "value": int(r.film_id)}
                for r in FILMS.sort_values("vote_count", ascending=False).itertuples()]
+# Marquee film for the opening spotlight — the highest-grossing title, so the demo
+# loads on something instantly recognizable instead of an empty prompt.
+MARQUEE = FILMS.loc[FILMS["revenue"].idxmax()]
 
 
 # ===========================================================================
@@ -222,14 +253,38 @@ def fig_perf_donut(df):
     return style(fig, "Hit / profitable / flop mix", height=430)
 
 
+def fig_leaderboard(df, value_col, title, *, n=10, largest=True, money_fmt=True,
+                    suffix="", color=PALETTE[0], min_budget=None, height=430):
+    """Horizontal 'top N films' bar — the crowd-pleaser view. Each bar carries its
+    film_id in customdata so a click opens that film in the spotlight."""
+    d = df if min_budget is None else df[df["budget"] >= min_budget]
+    d = d.nlargest(n, value_col) if largest else d.nsmallest(n, value_col)
+    d = d.sort_values(value_col, ascending=True)  # #1 ends up at the top of the axis
+    if d.empty:
+        return style(go.Figure(), title, height=height)
+    text = d[value_col].map(money) if money_fmt else d[value_col].map(lambda v: f"{v:,.1f}{suffix}")
+    fig = go.Figure(go.Bar(
+        x=d[value_col], y=d["title"], orientation="h", marker_color=color,
+        customdata=d["film_id"], text=text, textposition="outside", cliponaxis=False,
+        hovertext=[f"{t} ({int(y)}) · ⭐ {r:.1f}" for t, y, r
+                   in zip(d["title"], d["release_year"], d["vote_average"])],
+        hoverinfo="text"))
+    fig.update_yaxes(tickfont=dict(size=10), automargin=True)
+    fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False)
+    pad = (d[value_col].max() - min(0, d[value_col].min())) * 0.18 or 1
+    fig.update_xaxes(range=[min(0, d[value_col].min()) - pad * 0.3, d[value_col].max() + pad])
+    return style(fig, title, height=height)
+
+
 # ===========================================================================
 # Film spotlight (the core "look up a specific film" feature)
 # ===========================================================================
 def money(v):
     v = float(v)
-    if abs(v) >= 1e9:
-        return f"${v/1e9:.2f}B"
-    return f"${v/1e6:.1f}M"
+    sign, a = ("-" if v < 0 else ""), abs(v)
+    if a >= 1e9:
+        return f"{sign}${a/1e9:.2f}B"
+    return f"{sign}${a/1e6:.1f}M"
 
 
 def stat(label, value, color=INK):
@@ -269,22 +324,24 @@ def film_detail(row):
 
 
 DETAIL_PROMPT = html.Div(
-    "Search a film above — or click any point in a chart or row in the table — to see its "
-    "budget, revenue, profit, ROI and rating.",
+    "Search a film, or click any chart point or table row, to see its budget, revenue, "
+    "profit, ROI and rating.",
     className="text-muted py-2", style={"fontSize": "0.9rem"})
 
 
 # ===========================================================================
 # UI helpers
 # ===========================================================================
-def kpi(title, idd, accent):
+def kpi(title, idd):
+    """One uniform metric tile — no per-card accent colour (the rainbow look reads as a
+    template). Restraint: hairline border, ink number, muted label. The data is the colour."""
     return dbc.Card(dbc.CardBody([
         html.Div(title, className="text-uppercase",
-                 style={"fontSize": "0.7rem", "letterSpacing": "0.6px", "color": MUTED, "fontWeight": 600}),
-        html.Div(id=idd, style={"fontSize": "1.55rem", "fontWeight": 700, "color": INK,
-                                "lineHeight": "1.15", "marginTop": "3px"}),
-    ], style={"padding": "0.8rem 1rem"}), className="shadow-sm h-100",
-        style={"border": "none", "borderLeft": f"4px solid {accent}", "borderRadius": "10px"})
+                 style={"fontSize": "0.68rem", "letterSpacing": "0.7px", "color": MUTED, "fontWeight": 600}),
+        html.Div(id=idd, style={"fontSize": "1.5rem", "fontWeight": 700, "color": INK,
+                                "lineHeight": "1.15", "marginTop": "4px"}),
+    ], style={"padding": "0.85rem 1rem"}), className="h-100",
+        style={"border": f"1px solid {BORDER}", "borderRadius": "8px", "backgroundColor": "white"})
 
 
 def dd(idd, options, placeholder):
@@ -298,8 +355,9 @@ def graph(idd, height="44vh"):
 
 
 def card(body, **kw):
-    return dbc.Card(dbc.CardBody(body), className="shadow-sm",
-                    style={"border": "none", "borderRadius": "10px", **kw})
+    return dbc.Card(dbc.CardBody(body),
+                    style={"border": f"1px solid {BORDER}", "borderRadius": "8px",
+                           "backgroundColor": "white", **kw})
 
 
 TABLE_COLS = [
@@ -331,8 +389,8 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
                     style={"color": INK, "letterSpacing": "-0.4px"}),
             html.Div(style={"height": "3px", "width": "54px", "background": ACCENT,
                             "borderRadius": "2px", "marginBottom": "8px"}),
-            html.P("Explore the budgets, box-office returns and audience ratings of 6,008 films "
-                   "(2000–2026). Live PostgreSQL · TMDB data.",
+            html.P(f"Explore the budgets, box-office returns and audience ratings of {len(FILMS):,} "
+                   f"films (2000–2026). {DATA_SOURCE} · TMDB data.",
                    className="mb-0", style={"fontSize": "0.86rem", "color": MUTED}),
         ], md=9),
         dbc.Col(dbc.Button("Refresh data", id="refresh", color="secondary", outline=True,
@@ -345,20 +403,21 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
             dbc.Col(html.Small("SPOTLIGHT A FILM", className="fw-bold", style={"color": MUTED}), md=3),
         ]),
         dbc.Row([
-            dbc.Col(dcc.Dropdown(id="film-picker", options=PICKER_OPTS, value=None,
+            dbc.Col(dcc.Dropdown(id="film-picker", options=PICKER_OPTS,
+                                 value=int(MARQUEE["film_id"]),
                                  placeholder="Search any film by name…", optionHeight=34), md=4),
-            dbc.Col(html.Div(DETAIL_PROMPT, id="film-detail"), md=8),
+            dbc.Col(html.Div(film_detail(MARQUEE), id="film-detail"), md=8),
         ], className="g-3 align-items-center"),
     ], marginBottom="1rem"),
 
     # ---- KPI cards (summarise the current filter) ----
     dbc.Row([
-        dbc.Col(kpi("Films shown", "kpi-films", PALETTE[0]), md=2, xs=6),
-        dbc.Col(kpi("Avg rating", "kpi-rating", PALETTE[1]), md=2, xs=6),
-        dbc.Col(kpi("Median return", "kpi-mult", PALETTE[2]), md=2, xs=6),
-        dbc.Col(kpi("Median ROI %", "kpi-roi", PALETTE[3]), md=2, xs=6),
-        dbc.Col(kpi("Total profit", "kpi-profit", PALETTE[4]), md=2, xs=6),
-        dbc.Col(kpi("Hit rate", "kpi-hits", PALETTE[5]), md=2, xs=6),
+        dbc.Col(kpi("Films shown", "kpi-films"), md=2, xs=6),
+        dbc.Col(kpi("Avg rating", "kpi-rating"), md=2, xs=6),
+        dbc.Col(kpi("Median return", "kpi-mult"), md=2, xs=6),
+        dbc.Col(kpi("Median ROI %", "kpi-roi"), md=2, xs=6),
+        dbc.Col(kpi("Total profit", "kpi-profit"), md=2, xs=6),
+        dbc.Col(kpi("Hit rate", "kpi-hits"), md=2, xs=6),
     ], className="g-2 my-3"),
 
     # ---- filters ----
@@ -377,10 +436,21 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
     ], className="g-3 align-items-start")),
 
     # ---- tabs ----
-    html.Div(card(dbc.Tabs(active_tab="t-browse", children=[
+    html.Div(card(dbc.Tabs(active_tab="t-top", children=[
+        dbc.Tab(label="Top films", tab_id="t-top", children=[
+            html.P("Biggest winners and losers in the current selection. Click a bar to open a film.",
+                   className="mt-2 mb-2", style={"fontSize": "0.82rem", "color": MUTED}),
+            dbc.Row([
+                dbc.Col(graph("g-top-rev", "42vh"), lg=6),
+                dbc.Col(graph("g-top-profit", "42vh"), lg=6),
+            ], className="g-3"),
+            dbc.Row([
+                dbc.Col(graph("g-top-mult", "42vh"), lg=6),
+                dbc.Col(graph("g-top-loss", "42vh"), lg=6),
+            ], className="g-3 mt-0"),
+        ]),
         dbc.Tab(label="Browse films", tab_id="t-browse", children=[
-            html.P("Type in any column's filter box to search, click a header to sort, and click a "
-                   "row to open that film in the spotlight above.",
+            html.P("Search any column, sort by a header, or click a row to open a film.",
                    className="mt-2 mb-2", style={"fontSize": "0.82rem", "color": MUTED}),
             dash_table.DataTable(
                 id="film-table", columns=TABLE_COLS, sort_action="native",
@@ -426,6 +496,8 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
     Output("g-scatter", "figure"), Output("g-band", "figure"),
     Output("g-genre-scatter", "figure"), Output("g-genre-bar", "figure"),
     Output("g-tier", "figure"), Output("g-perf", "figure"), Output("g-trend", "figure"),
+    Output("g-top-rev", "figure"), Output("g-top-profit", "figure"),
+    Output("g-top-mult", "figure"), Output("g-top-loss", "figure"),
     Output("film-table", "data"),
     Input("f-genre", "value"), Input("f-decade", "value"),
     Input("f-tier", "value"), Input("f-year", "value"),
@@ -434,7 +506,7 @@ def update(genres, decades, tiers, year_range):
     df = apply_filters(FILMS, genres, decades, tiers, year_range)
     if df.empty:
         e = style(go.Figure(), "No films match the current filters")
-        return ("0", "—", "—", "—", "$0", "—", e, e, e, e, e, e, e, [])
+        return ("0", "—", "—", "—", "$0", "—", e, e, e, e, e, e, e, e, e, e, e, [])
 
     profit_txt = money(df["profit"].sum())
     hits = (df["performance"] == "Hit (>=2x)").mean() * 100
@@ -448,31 +520,56 @@ def update(genres, decades, tiers, year_range):
         f"{df['revenue_multiple'].median():.1f}×", f"{df['roi_pct'].median():.0f}%",
         profit_txt, f"{hits:.0f}%",
         fig_scatter(df), fig_rating_band(df), fig_genre_scatter(g), fig_genre_bar(g),
-        fig_tier_bars(df), fig_perf_donut(df), fig_trend(df), table,
+        fig_tier_bars(df), fig_perf_donut(df), fig_trend(df),
+        fig_leaderboard(df, "revenue", "Biggest box office", color=PALETTE[0]),
+        fig_leaderboard(df, "profit", "Biggest profit", color="#2E8B8B"),
+        fig_leaderboard(df, "revenue_multiple", "Best return on budget (budget ≥ $10M)",
+                        money_fmt=False, suffix="×", color=PALETTE[2], min_budget=10_000_000),
+        fig_leaderboard(df, "profit", "Biggest losses", largest=False, color="#B5524B"),
+        table,
     )
+
+
+CLICK_GRAPHS = ["g-scatter", "g-top-rev", "g-top-profit", "g-top-mult", "g-top-loss"]
+
+
+def _film_id_from_click(click):
+    """customdata is a list ([film_id]) for px scatter, a scalar for go.Bar."""
+    if not click or not click.get("points"):
+        return None
+    cd = click["points"][0].get("customdata")
+    return (cd[0] if isinstance(cd, (list, tuple)) else cd)
 
 
 @app.callback(
     Output("film-detail", "children"), Output("film-picker", "value"),
-    Input("film-picker", "value"), Input("g-scatter", "clickData"),
+    Input("film-picker", "value"),
+    *[Input(g, "clickData") for g in CLICK_GRAPHS],
     Input("film-table", "active_cell"),
     State("film-table", "derived_viewport_data"),
 )
-def spotlight(picker_id, click, cell, viewport):
+def spotlight(picker_id, *args):
+    *clicks, cell, viewport = args
     trig = callback_context.triggered_id
     fid = None
-    if trig == "film-picker":
+    # trig is None on the initial page load — render the pre-selected marquee film.
+    if trig in (None, "film-picker"):
         fid = picker_id
-    elif trig == "g-scatter" and click:
-        fid = click["points"][0]["customdata"][0]
+    elif trig in CLICK_GRAPHS:
+        fid = _film_id_from_click(clicks[CLICK_GRAPHS.index(trig)])
     elif trig == "film-table" and cell and viewport:
         fid = (viewport[cell["row"]] or {}).get("film_id")
-    if not fid:
+    if fid is None:
+        return DETAIL_PROMPT, no_update
+    try:
+        fid = int(fid)
+    except (TypeError, ValueError):
         return DETAIL_PROMPT, no_update
     row = FILMS[FILMS["film_id"] == fid]
     if row.empty:
         return DETAIL_PROMPT, no_update
-    new_value = no_update if trig == "film-picker" else int(fid)
+    # Don't echo a value back to the picker when the picker (or initial load) is the source.
+    new_value = no_update if trig in (None, "film-picker") else fid
     return film_detail(row.iloc[0]), new_value
 
 
