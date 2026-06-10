@@ -981,4 +981,7 @@ def refresh_data(_n, year_range):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=8050)
+    # HOST=0.0.0.0 serves to other devices on the same network
+    # (debug mode stays off in that case — never expose the debugger).
+    host = os.environ.get("HOST", "127.0.0.1")
+    app.run(debug=host == "127.0.0.1", host=host, port=int(os.environ.get("PORT", "8050")))
