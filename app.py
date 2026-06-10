@@ -423,6 +423,35 @@ COMPARE_PROMPT = html.Div("Pick a film on each side to compare them.",
                           className="text-muted py-3", style={"fontSize": "0.9rem"})
 
 
+def _compare_poster(row, accent):
+    url = poster_url(row.get("imdb_id"))
+    box = {"width": "100%", "maxWidth": "150px", "aspectRatio": "2 / 3", "margin": "0 auto",
+           "borderRadius": "8px", "border": f"2px solid {accent}", "boxShadow": SHADOW,
+           "display": "block"}
+    art = (html.Img(src=url, style={**box, "objectFit": "cover"}) if url else
+           html.Div(row["title"], style={**box, "backgroundColor": PANEL_HI, "color": MUTED,
+                                         "fontSize": "0.75rem", "textAlign": "center",
+                                         "padding": "0 6px", "display": "flex",
+                                         "alignItems": "center", "justifyContent": "center"}))
+    return html.Div([
+        art,
+        html.Div(row["title"], style={"color": accent, "fontWeight": 700, "textAlign": "center",
+                                      "marginTop": "6px", "fontSize": "0.9rem"}),
+        html.Div(f"({int(row['release_year'])})", style={"color": MUTED, "textAlign": "center",
+                                                         "fontSize": "0.8rem"}),
+    ])
+
+
+def compare_posters(a, b):
+    return dbc.Row([
+        dbc.Col(_compare_poster(a, GOLD), xs=5),
+        dbc.Col(html.Div("VS", style={"fontFamily": HEAD_FONT, "fontWeight": 700,
+                                      "fontSize": "1.7rem", "color": MUTED, "textAlign": "center"}),
+                xs=2, className="d-flex align-items-center justify-content-center"),
+        dbc.Col(_compare_poster(b, TEAL), xs=5),
+    ], className="align-items-center g-2")
+
+
 # ===========================================================================
 # Film page — the rich single-film view (poster + money + how-it-ranks + scatter)
 # ===========================================================================
@@ -724,6 +753,7 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
                                       value=int(MARQUEE2["film_id"]), optionHeight=34,
                                       placeholder="Choose a film…")], md=6),
             ], className="g-3"),
+            html.Div(compare_posters(MARQUEE, MARQUEE2), id="compare-posters", className="mt-3"),
             dbc.Row([
                 dbc.Col(graph("g-compare", "44vh"), lg=7),
                 dbc.Col(html.Div(id="compare-stats", className="mt-4 mt-lg-0"), lg=5),
@@ -881,17 +911,19 @@ def open_from_card(_clicks):
 
 @app.callback(
     Output("g-compare", "figure"), Output("compare-stats", "children"),
+    Output("compare-posters", "children"),
     Input("cmp-a", "value"), Input("cmp-b", "value"),
 )
 def compare(a_id, b_id):
+    blank = style(go.Figure(), "Budget · Revenue · Profit", height=420)
     if not a_id or not b_id:
-        return style(go.Figure(), "Budget · Revenue · Profit", height=420), COMPARE_PROMPT
+        return blank, COMPARE_PROMPT, no_update
     ra = FILMS[FILMS["film_id"] == int(a_id)]
     rb = FILMS[FILMS["film_id"] == int(b_id)]
     if ra.empty or rb.empty:
-        return style(go.Figure(), "Budget · Revenue · Profit", height=420), COMPARE_PROMPT
+        return blank, COMPARE_PROMPT, no_update
     a, b = ra.iloc[0], rb.iloc[0]
-    return fig_compare(a, b), compare_stats(a, b)
+    return fig_compare(a, b), compare_stats(a, b), compare_posters(a, b)
 
 
 @app.callback(Output("f-year", "value"), Input("refresh", "n_clicks"),
