@@ -123,6 +123,19 @@ def load_films() -> pd.DataFrame:
               f"loading CSV snapshot from {CSV_FALLBACK}")
         df = _load_from_csv()
         DATA_SOURCE = "CSV snapshot (Postgres offline)"
+    # ---- data-quality filter (stricter than the DB's budget/revenue > 0 rule) ----
+    # Drops two kinds of bad data that would otherwise distort the dashboard:
+    #  • placeholder budgets/revenues ($1, $5, …) that produce absurd ROI
+    #    (e.g. The Beatles doc: $5 budget → $12M revenue = 2.4-million× return).
+    #  • streaming-first films whose TMDB "revenue" is only a token theatrical
+    #    figure (Netflix/Amazon: The Gray Man, The Irishman, Red Notice …) — they
+    #    earn <5% of budget and would dominate the "biggest flops" / ROI views with
+    #    misleading numbers. Their real revenue (subscriptions) isn't public.
+    _before = len(df)
+    df = df[(df["budget"] >= 1000) & (df["revenue"] >= 1000)
+            & (df["revenue"] >= df["budget"] * 0.05)].copy()
+    print(f"[clean] dropped {_before - len(df)} films with placeholder or "
+          f"streaming-only revenue; {len(df)} remain")
     df["budget_tier"] = pd.Categorical(df["budget_tier"], categories=TIER_ORDER, ordered=True)
     df["performance"] = pd.Categorical(df["performance"], categories=PERF_ORDER, ordered=True)
     df["genre_list"] = df["genres"].fillna("").apply(lambda s: [g for g in s.split(", ") if g])
