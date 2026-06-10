@@ -63,7 +63,7 @@ default view and is opt-in via the slider.
 
 ### How to run
 
-**The quick way, no database needed.** The repo ships with the data
+**Quick start (no database required).** The repository ships with the data
 (`data/films_enriched.csv`) and a poster cache, so on any machine with **Python 3.10+**:
 
 ```bash
@@ -72,11 +72,11 @@ python app.py
 # → open http://127.0.0.1:8050
 ```
 
-On Windows, **`run.bat`** does all of it in one double-click (creates a venv, installs
-`requirements.txt`, launches the app, and opens the browser).
+On Windows, **`run.bat`** performs all of these steps in a single double-click (creates a
+virtual environment, installs `requirements.txt`, launches the app, and opens the browser).
 
-That's it. No PostgreSQL, no `.env`, no setup. (Movie poster images load from TMDB, so
-they need internet; everything else works offline.)
+No PostgreSQL, environment file, or additional configuration is required. (Movie poster
+images load from TMDB and therefore require internet access; everything else works offline.)
 
 **Hosted live URL (optional):** see [`DEPLOY.md`](DEPLOY.md) for one-click deploy to a free
 Render web service from GitHub (also database-free, uses the bundled CSV).
@@ -89,7 +89,7 @@ The app uses the live DB when reachable and falls back to the CSV when it isn't.
 
 The app connects directly to PostgreSQL with SQLAlchemy and runs **one view-based query**
 (`v_films_enriched`) at startup / refresh, deriving presentation fields (decade, ROI %,
-budget tier, performance) in SQL so the database does the heavy lifting; callbacks then
+budget tier, performance) in SQL so the database performs the aggregation; callbacks then
 filter the in-memory frame for instant interactivity. The "Refresh data" button re-queries
 the live database.
 

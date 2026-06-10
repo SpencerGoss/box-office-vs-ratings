@@ -6,7 +6,7 @@ This database stores film financial data (budget, revenue, profit) and audience-
 The schema is normalized to approximately Third Normal Form (3NF) by:
 
 - separating films, genres, and the film–genre relationship into their own tables
-- avoiding repeated data — a genre name is stored exactly once in `genres` rather than on every film row
+- avoiding repeated data: a genre name is stored exactly once in `genres` rather than on every film row
 - using a bridge table (`film_genres`) to resolve the many-to-many relationship between films and genres
 
 ## ER Diagram
@@ -37,20 +37,20 @@ The database contains three tables and one view:
 
 **Purpose**
 
-Stores one row per movie that survives the cleaning rules (`vote_count >= 100`, `budget > 0`, `revenue > 0`). This is the central fact-style table — every financial or rating column referenced by the analytics dashboard lives here.
+Stores one row per movie that survives the cleaning rules (`vote_count >= 100`, `budget > 0`, `revenue > 0`). This is the central fact-style table; every financial or rating column referenced by the analytics dashboard lives here.
 
 **Examples**
 
-- Inception (2010) — \$160M budget, \$839M revenue, 8.4 rating
-- Cats (2019) — \$95M budget, \$77M revenue, 4.1 rating
+- Inception (2010): \$160M budget, \$839M revenue, 8.4 rating
+- Cats (2019): \$95M budget, \$77M revenue, 4.1 rating
 
 **Primary Key**
 
-- `film_id` — a surrogate auto-incrementing integer. I chose a surrogate over TMDB's own id so the bridge table is decoupled from the upstream source if I ever need to re-key.
+- `film_id`: a surrogate auto-incrementing integer, chosen over TMDB's own id so the bridge table is decoupled from the upstream source if the data ever needs to be re-keyed.
 
 **Unique Keys**
 
-- `tmdb_id` — TMDB's stable identifier for the movie. It is the upsert dedup key used by the load script's `ON CONFLICT (tmdb_id)` clause, which is what makes re-running the script idempotent.
+- `tmdb_id`: TMDB's stable identifier for the movie. It is the upsert dedup key used by the load script's `ON CONFLICT (tmdb_id)` clause, which is what makes re-running the script idempotent.
 
 **Relationships**
 
@@ -61,9 +61,9 @@ Stores one row per movie that survives the cleaning rules (`vote_count >= 100`, 
 
 The cleaning rules are enforced as `CHECK` constraints in the table itself, so the database rejects invalid rows even if the Python filter is bypassed:
 
-- `chk_budget_positive` — `budget > 0`
-- `chk_revenue_positive` — `revenue > 0`
-- `chk_vote_count` — `vote_count >= 100`
+- `chk_budget_positive`: `budget > 0`
+- `chk_revenue_positive`: `revenue > 0`
+- `chk_vote_count`: `vote_count >= 100`
 
 **Table Structure**
 
@@ -99,7 +99,7 @@ Stores TMDB's standardized genre lookup. The table is loaded once from TMDB's `/
 
 **Primary Key**
 
-- `genre_id` — TMDB's own genre id reused as the primary key. Reusing the upstream id means joins remain valid across re-extracts without a remapping step.
+- `genre_id`: TMDB's own genre id reused as the primary key. Reusing the upstream id means joins remain valid across re-extracts without a remapping step.
 
 **Relationships**
 
@@ -125,12 +125,12 @@ Inception (`film_id = 27205`) is classified as Action (`genre_id = 28`), Adventu
 
 **Composite Primary Key**
 
-- `(film_id, genre_id)` — using the pair as the primary key prevents the same (film, genre) combination from being inserted twice.
+- `(film_id, genre_id)`: using the pair as the primary key prevents the same (film, genre) combination from being inserted twice.
 
 **Foreign Keys**
 
-- `film_id` → `films.film_id` (ON DELETE CASCADE — deleting a film removes its genre links)
-- `genre_id` → `genres.genre_id` (ON DELETE RESTRICT — a genre cannot be deleted while films still reference it)
+- `film_id` → `films.film_id` (ON DELETE CASCADE: deleting a film removes its genre links)
+- `genre_id` → `genres.genre_id` (ON DELETE RESTRICT: a genre cannot be deleted while films still reference it)
 
 **Relationships**
 
@@ -152,8 +152,8 @@ A declarative (non-materialized) view that joins the three tables and exposes de
 **Derived Columns**
 
 - `profit` = `revenue - budget`
-- `roi` = `CASE WHEN budget > 0 THEN revenue::numeric / budget END` (NULL-safe — returns NULL when budget is zero rather than dividing)
-- `genres` = `STRING_AGG(g.name, ', ')` — comma-separated list of every genre attached to the film
+- `roi` = `CASE WHEN budget > 0 THEN revenue::numeric / budget END` (NULL-safe: returns NULL when budget is zero rather than dividing)
+- `genres` = `STRING_AGG(g.name, ', ')`, a comma-separated list of every genre attached to the film
 
 All passthrough columns from `films` are included, so the view returns one wide row per movie with no JOIN required at query time.
 
@@ -187,9 +187,9 @@ Film data is sourced from **The Movie Database (TMDB) API** through a two-stage 
 
 After the second stage, any film with `budget = 0` or `revenue = 0` is dropped. TMDB reports zero for these fields on many older or less-documented titles, and including them would distort the analysis. The cleaning rules (`vote_count >= 100`, `budget > 0`, `revenue > 0`) are applied in both the Python filter and as `CHECK` constraints on `films`.
 
-**Stricter data-quality filter (transform layer).** The `> 0` rules above are necessary but not sufficient, because TMDB has two systematic problems for a *box-office* analysis: (1) **streaming-first films** (Netflix/Amazon — *The Gray Man* $200M→$0.45M, *The Irishman*, *Red Notice*) record only a token qualifying-theatrical figure, so they look like nine-figure flops; (2) **placeholder budgets/revenues** of $1–$5 pass `> 0` but produce absurd ROI. `clean_films()` therefore additionally keeps only films with **budget ≥ $1,000**, **revenue ≥ $1,000**, and **revenue ≥ 5% of budget**, dropping **349 rows**. The base-table `CHECK` constraints intentionally stay loose (`> 0`) so the raw load remains auditable; the stricter rules live in the Python transform and the `films_enriched.csv` export.
+**Stricter data-quality filter (transform layer).** The `> 0` rules above are necessary but not sufficient, because TMDB has two systematic problems for a *box-office* analysis: (1) **streaming-first films** (Netflix/Amazon: *The Gray Man* $200M→$0.45M, *The Irishman*, *Red Notice*) record only a token qualifying-theatrical figure, so they look like nine-figure flops; (2) **placeholder budgets/revenues** of $1–$5 pass `> 0` but produce absurd ROI. `clean_films()` therefore additionally keeps only films with **budget ≥ $1,000**, **revenue ≥ $1,000**, and **revenue ≥ 5% of budget**, dropping **349 rows**. The base-table `CHECK` constraints intentionally stay loose (`> 0`) so the raw load remains auditable; the stricter rules live in the Python transform and the `films_enriched.csv` export.
 
-**Caveat on 2026 data.** 2026 is partial year-to-date — only 36 films loaded so far, and revenue figures continue to climb for recently released titles. Dashboards should either filter to `release_year <= 2025` or label 2026 explicitly as "YTD (incomplete)."
+**Caveat on 2026 data.** 2026 is partial year-to-date: only 36 films loaded so far, and revenue figures continue to climb for recently released titles. Dashboards should either filter to `release_year <= 2025` or label 2026 explicitly as "YTD (incomplete)."
 
 At the time of writing, the loaded database contains **5,659 films**, **19 genres**, and **14,914 film-genre links** (6,008 films are extracted from TMDB; 349 are dropped by the stricter data-quality filter described above).
 
@@ -216,4 +216,4 @@ genres.genre_id          = 878
 genres.name              = "Science Fiction"
 ```
 
-A single row in `films` joined to three rows in `film_genres` resolves to "Inception is classified as Action, Adventure, and Science Fiction." The genre name "Action" is stored exactly once in `genres` regardless of how many films are tagged with it — the central benefit of normalization.
+A single row in `films` joined to three rows in `film_genres` resolves to "Inception is classified as Action, Adventure, and Science Fiction." The genre name "Action" is stored exactly once in `genres` regardless of how many films are tagged with it, the central benefit of normalization.

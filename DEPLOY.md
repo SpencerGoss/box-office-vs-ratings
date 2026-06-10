@@ -1,13 +1,13 @@
 # Deploying the dashboard to a live URL (free)
 
-The app runs **without a database** in the cloud — it auto-falls back to the committed
+The app runs **without a database** in the cloud; it automatically falls back to the committed
 `data/films_enriched.csv` (5,659 films) and the cached `data/posters.json`, so there's
 nothing to provision. Host it on **Render**'s free tier.
 
 Files that make this work (already in the repo): `Procfile`, `.python-version`,
 `gunicorn` in `requirements.txt`, and the committed CSV + poster cache.
 
-## One-time setup (do it the night before — leave time to test)
+## One-time setup (do it the night before, to leave time to test)
 
 1. **Push the repo to GitHub** (Render deploys from GitHub):
    ```
