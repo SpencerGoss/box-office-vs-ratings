@@ -18,8 +18,8 @@ TMDB API ─► ETL (clean · validate · load) ─► PostgreSQL (boxoffice, 3N
 ## The Dash application — `app.py`
 
 An interactive **film explorer** connected live to PostgreSQL, designed for a live demo:
-a dark "movie theater" theme (cinema-gold + teal-and-orange grading), recognizable
-content, and a rich page for any individual film.
+a rich red-velvet **"movie theater" theme** with real movie posters throughout, and a
+full breakdown page for any individual film.
 
 ### Film page (the centerpiece)
 
@@ -30,7 +30,7 @@ the page becomes a full breakdown of that film:
 |-------|---------------|
 | **Poster** | The film's poster (from TMDB, cached locally). |
 | **The money** | Budget → Revenue → Profit as a bar, so the scale is instantly readable. |
-| **How it ranks vs. all films** | Revenue, ROI, and rating as percentile bars ("top 1%") — context that ties money to ratings for that one film. |
+| **How it ranks vs. all films** | A section showing the film's Revenue, ROI, and rating percentiles ("top 1%") — context that ties money to ratings for that one film. |
 | **Where it sits** | The film's dot highlighted on the ratings-vs-returns scatter of every film. |
 | **Headline stats + tier** | Rating, return multiple, ROI, runtime, and a plain-English performance tier (e.g. *"Hit · made 2×+ its budget"*). |
 
@@ -40,8 +40,8 @@ the page becomes a full breakdown of that film:
 
 | Tab | What it does |
 |-----|--------------|
-| **Top films** | Leaderboards of the biggest box office, biggest profit, best return-on-budget, and biggest losses. Click any bar to open that film. |
-| **Compare films** | Pick any two films for a head-to-head: a grouped budget/revenue/profit chart plus a stat table with the winning value highlighted. |
+| **Top films** | A **poster wall** — sub-tabs for biggest box office, most profitable, best return-on-budget, and biggest flops, each showing the **top 10 as ranked movie-poster cards** (#1–#10 + the number). Click a poster to open that film. |
+| **Compare films** | Pick any two films for a head-to-head: their **posters side by side**, a grouped budget/revenue/profit chart, and a stat table with the winning value highlighted. |
 | **Browse films** | A sortable, searchable table of every film; click a row to open it. |
 | **Ratings vs. returns** | The core question — a rating-vs-return scatter of every film, plus median return by rating band. |
 | **What makes money** | Median ROI by genre and by budget tier, and the overall hit / profitable / flop split. |
@@ -61,23 +61,24 @@ default view and is opt-in via the slider.
 
 ### How to run
 
-```powershell
-# 1. From the project root, activate the virtual environment
-.\venv\Scripts\Activate.ps1
+**The quick way — no database needed.** The repo ships with the data
+(`data/films_for_powerbi.csv`) and a poster cache, so on any machine with **Python 3.12+**:
 
-# 2. Install dependencies
+```bash
 pip install -r requirements.txt
-
-# 3. Make sure PostgreSQL is running and loaded (see ETL section below),
-#    and that .env has the DB credentials (copy from .env.example).
-
-# 4. (Optional) pre-cache posters for the popular films so they load instantly:
-python fetch_posters.py
-
-# 5. Launch the app
 python app.py
-#    then open http://127.0.0.1:8050
+# → open http://127.0.0.1:8050
 ```
+
+That's it — no PostgreSQL, no `.env`, no setup. (Movie poster images load from TMDB, so
+they need internet; everything else works offline.)
+
+**Hosted live URL (optional):** see [`DEPLOY.md`](DEPLOY.md) — one-click deploy to a free
+Render web service from GitHub (also database-free, uses the bundled CSV).
+
+**With the full PostgreSQL pipeline (optional):** copy `.env.example` → `.env` with your DB
+credentials, run `python etl_pipeline.py` to build/load the database, then `python app.py`.
+The app uses the live DB when reachable and falls back to the CSV when it isn't.
 
 ### Database integration & demo resilience
 
@@ -188,9 +189,11 @@ etl_pipeline.py           Full single-file ETL pipeline (extract→transform→v
 fetch_posters.py          One-time TMDB poster pre-cache for the dashboard
 schema_documentation.md   Schema docs + ER diagram
 load_script.py            Initial PostgreSQL load script (Week 2)
+DEPLOY.md                 How to host a free live URL (Render) + run locally
+Procfile, .python-version Deployment config (gunicorn start command, Python pin)
 src/extract/              Standalone TMDB fetcher
 docs/screenshots/         App screenshots
-data/                     CSV snapshots, raw JSON, poster cache (gitignored)
+data/                     bundled CSV snapshots + poster cache (raw JSON gitignored)
 requirements.txt          Python dependencies
 ```
 

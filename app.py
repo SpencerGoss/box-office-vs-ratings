@@ -149,6 +149,7 @@ YEAR_MIN, YEAR_MAX = int(FILMS["release_year"].min()), int(FILMS["release_year"]
 # 2026 is partial year-to-date (few films, revenue still climbing → skewed high), so the
 # year filter DEFAULTS to the last complete year; 2026 stays available (opt-in via slider).
 YEAR_COMPLETE = min(2025, YEAR_MAX)
+N_FILMS_COMPLETE = int((FILMS["release_year"] <= YEAR_COMPLETE).sum())  # default-view count
 # Film-picker options (value = film_id), sorted by popularity-ish (vote_count).
 PICKER_OPTS = [{"label": f"{r.title} ({r.release_year})", "value": int(r.film_id)}
                for r in FILMS.sort_values("vote_count", ascending=False).itertuples()]
@@ -703,7 +704,7 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
                             "fontSize": "1.9rem", "letterSpacing": "1.5px", "lineHeight": "1.1"}),
             html.Div(style={"height": "3px", "width": "70px", "background": GOLD,
                             "margin": "7px 0 9px"}),
-            html.P(f"Do better films make more money? {len(FILMS):,} films, 2000–2026.  "
+            html.P(f"Do better films make more money? {N_FILMS_COMPLETE:,} films, 2000–2025.  "
                    f"·  {DATA_SOURCE} · TMDB",
                    className="mb-0", style={"fontSize": "0.86rem", "color": MUTED}),
         ], md=9, className="d-flex flex-column justify-content-center"),
