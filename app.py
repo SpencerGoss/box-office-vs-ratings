@@ -39,17 +39,17 @@ load_dotenv()
 
 # ---- "movie theater" palette: warm espresso canvas + the classic teal-and-orange
 # film-grading scheme (cinema gold/amber warm, teal as the complementary cool) ----
-BG = "#100D08"          # near-black warm — a dark theater
-PANEL = "#1C1710"       # dark — cards / chart panels
-PANEL_HI = "#272016"    # table header, hover, raised bits
-BORDER = "#3A2F20"      # subtle warm border
-INK = "#FAF2E0"         # bright cream (primary text)
-MUTED = "#B0A284"       # warm grey text
-GRID = "#2C2418"        # chart gridlines
-GOLD = "#FFC22E"        # vivid marquee gold — primary (box office, hits, winners)
-ORANGE = "#FF811A"      # vivid orange — secondary (returns, ROI, profitable)
-RED = "#FB3A2E"         # vivid red — losses / flops
-TEAL = "#1ED6C6"        # electric cyan — the cool pop (teal-and-orange, vivid)
+BG = "#2A0E13"          # deep wine / red-velvet — the theater itself
+PANEL = "#3A1820"       # lighter maroon — cards / chart panels
+PANEL_HI = "#4B2129"    # table header, hover, raised bits
+BORDER = "#5E2A33"      # warm maroon border
+INK = "#F6EBD7"         # cream (primary text)
+MUTED = "#CBB097"       # warm sand text
+GRID = "#4E2129"        # chart gridlines (subtle on maroon)
+GOLD = "#F4C44E"        # bright marquee gold — primary (box office, hits, winners)
+ORANGE = "#F2872F"      # bright orange — secondary (returns, ROI, profitable)
+RED = "#F24A3A"         # bright red — losses / flops (pops above the maroon base)
+TEAL = "#26D3C5"        # electric cyan — the cool pop
 ACCENT = GOLD
 PAGE_BG = BG
 SHADOW = "0 2px 10px rgba(0,0,0,0.50)"
@@ -483,22 +483,34 @@ def fig_money(row):
     return style(fig, "The money", height=235)
 
 
-def fig_ranks(row):
+def film_ranks(row):
+    """How the film ranks vs. all films — a text section in the card (not a chart),
+    each metric with a slim inline progress bar."""
     items = [("Revenue", _pct(FILMS["revenue"], row["revenue"]), GOLD),
              ("ROI", _pct(FILMS["roi_pct"], row["roi_pct"]), ORANGE),
              ("Rating", _pct(FILMS["vote_average"], row["vote_average"]), TEAL)]
-    pcts = [i[1] for i in items]
 
     def lab(p):
         return f"top {max(1, round(100 - p))}%" if p >= 50 else f"beats {round(p)}%"
-    fig = go.Figure(go.Bar(
-        x=pcts, y=[i[0] for i in items], orientation="h",
-        marker_color=[i[2] for i in items],
-        text=[lab(p) for p in pcts], textposition="outside",
-        textfont=dict(size=11, color=INK), cliponaxis=False, showlegend=False))
-    fig.update_yaxes(autorange="reversed", tickfont=dict(size=11, color=INK))
-    fig.update_xaxes(range=[0, 122], showticklabels=False, showgrid=False, zeroline=False)
-    return style(fig, "How it ranks vs. all films", height=235)
+    lines = []
+    for name, p, color in items:
+        lines.append(html.Div([
+            html.Div([
+                html.Span(name, style={"color": MUTED, "fontSize": "0.8rem", "fontWeight": 600}),
+                html.Span(lab(p), style={"color": color, "fontSize": "0.85rem",
+                                         "fontWeight": 700, "float": "right"}),
+            ]),
+            html.Div(html.Div(style={"width": f"{max(2, round(p))}%", "height": "100%",
+                                     "backgroundColor": color, "borderRadius": "5px"}),
+                     style={"height": "7px", "backgroundColor": PANEL_HI, "borderRadius": "5px",
+                            "marginTop": "4px", "overflow": "hidden"}),
+        ], style={"marginBottom": "11px"}))
+    return html.Div([
+        html.Div("How it ranks vs. all films",
+                 style={"color": INK, "fontFamily": HEAD_FONT, "fontSize": "0.95rem",
+                        "fontWeight": 600, "marginBottom": "10px"}),
+        *lines,
+    ])
 
 
 def fig_film_scatter(row):
@@ -533,7 +545,7 @@ def poster_block(row):
 
 def film_meta(row):
     perf_color = PERF_COLORS.get(row["performance"], MUTED)
-    badge_text = "#100D08" if perf_color == GOLD else "white"
+    badge_text = "#2A0E13" if perf_color == GOLD else "white"
     rt = f"{int(row['runtime'])} min" if pd.notna(row["runtime"]) else "—"
     return html.Div([
         html.Span(row["title"], style={"fontFamily": HEAD_FONT, "fontWeight": 600,
@@ -618,38 +630,38 @@ app.index_string = """<!DOCTYPE html>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  html, body { background:#100D08; color:#FAF2E0; }
-  ::selection { background:#FFC22E; color:#100D08; }
+  html, body { background:#2A0E13; color:#F6EBD7; }
+  ::selection { background:#F4C44E; color:#2A0E13; }
   /* Dropdown (Dash 3 native) */
-  .dash-dropdown, .dash-dropdown-trigger { background:#1C1710 !important; border-color:#3A2F20 !important;
-      color:#FAF2E0 !important; border-radius:6px; }
-  .dash-dropdown-value, .dash-dropdown-value-item span, .dash-dropdown-placeholder { color:#FAF2E0 !important; }
+  .dash-dropdown, .dash-dropdown-trigger { background:#3A1820 !important; border-color:#5E2A33 !important;
+      color:#F6EBD7 !important; border-radius:6px; }
+  .dash-dropdown-value, .dash-dropdown-value-item span, .dash-dropdown-placeholder { color:#F6EBD7 !important; }
   /* open menu popup */
-  .dash-dropdown-content { background:#1C1710 !important; color:#FAF2E0 !important;
-      border:1px solid #3A2F20 !important; }
-  .dash-dropdown-search { background:#100D08 !important; color:#FAF2E0 !important;
-      border:1px solid #3A2F20 !important; }
-  .dash-options-list, .dash-dropdown-options { background:#1C1710 !important; color:#FAF2E0 !important; }
-  .dash-options-list-option, .dash-dropdown-option { color:#FAF2E0 !important; background:transparent !important; }
-  .dash-options-list-option:hover, .dash-dropdown-option:hover { background:#272016 !important;
-      color:#FFC22E !important; }
-  .dash-dropdown-action-button { color:#FFC22E !important; background:transparent !important; }
+  .dash-dropdown-content { background:#3A1820 !important; color:#F6EBD7 !important;
+      border:1px solid #5E2A33 !important; }
+  .dash-dropdown-search { background:#2A0E13 !important; color:#F6EBD7 !important;
+      border:1px solid #5E2A33 !important; }
+  .dash-options-list, .dash-dropdown-options { background:#3A1820 !important; color:#F6EBD7 !important; }
+  .dash-options-list-option, .dash-dropdown-option { color:#F6EBD7 !important; background:transparent !important; }
+  .dash-options-list-option:hover, .dash-dropdown-option:hover { background:#4B2129 !important;
+      color:#F4C44E !important; }
+  .dash-dropdown-action-button { color:#F4C44E !important; background:transparent !important; }
   /* Range slider (Dash 3 native) */
-  .dash-slider-track { background:#3A2F20 !important; }
-  .dash-slider-range { background:#FFC22E !important; }
-  .dash-slider-handle { background:#FFC22E !important; border-color:#FFC22E !important; }
-  .dash-slider-mark-text { color:#B0A284 !important; }
-  .dash-range-slider-input { background:#1C1710 !important; color:#FAF2E0 !important; border-color:#3A2F20 !important; }
+  .dash-slider-track { background:#5E2A33 !important; }
+  .dash-slider-range { background:#F4C44E !important; }
+  .dash-slider-handle { background:#F4C44E !important; border-color:#F4C44E !important; }
+  .dash-slider-mark-text { color:#CBB097 !important; }
+  .dash-range-slider-input { background:#3A1820 !important; color:#F6EBD7 !important; border-color:#5E2A33 !important; }
   /* Tabs */
-  .nav-tabs { border-bottom:1px solid #3A2F20 !important; }
-  .nav-tabs .nav-link { color:#B0A284 !important; border:none !important; font-weight:500; }
-  .nav-tabs .nav-link:hover { color:#FAF2E0 !important; }
-  .nav-tabs .nav-link.active { color:#FFC22E !important; background:transparent !important;
-      border-bottom:2px solid #FFC22E !important; }
+  .nav-tabs { border-bottom:1px solid #5E2A33 !important; }
+  .nav-tabs .nav-link { color:#CBB097 !important; border:none !important; font-weight:500; }
+  .nav-tabs .nav-link:hover { color:#F6EBD7 !important; }
+  .nav-tabs .nav-link.active { color:#F4C44E !important; background:transparent !important;
+      border-bottom:2px solid #F4C44E !important; }
   /* Top-films poster cards */
   .topcard { transition: transform .12s ease; }
   .topcard:hover { transform: translateY(-4px); }
-  .topcard:hover img { outline: 2px solid #FFC22E; outline-offset: 1px; }
+  .topcard:hover img { outline: 2px solid #F4C44E; outline-offset: 1px; }
 </style>
 </head>
 <body>{%app_entry%}<footer>{%config%}{%scripts%}{%renderer%}</footer></body>
@@ -693,7 +705,8 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
                 html.Div(film_meta(MARQUEE), id="film-meta"),
                 dbc.Row([
                     dbc.Col(graph("g-film-money", "22vh", "175px"), md=4),
-                    dbc.Col(graph("g-film-ranks", "22vh", "175px"), md=4),
+                    dbc.Col(html.Div(film_ranks(MARQUEE), id="film-ranks",
+                                     style={"padding": "8px 6px"}), md=4),
                     dbc.Col(graph("g-film-scatter", "22vh", "175px"), md=4),
                 ], className="g-2 mt-1"),
             ], xs=8, md=9, lg=10),
@@ -781,7 +794,7 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
                             "textOverflow": "ellipsis", "border": "none", "color": INK,
                             "backgroundColor": PANEL,
                             "borderBottom": f"1px solid {BORDER}", "cursor": "pointer"},
-                style_data_conditional=[{"if": {"row_index": "odd"}, "backgroundColor": "#221C12"},
+                style_data_conditional=[{"if": {"row_index": "odd"}, "backgroundColor": "#43202A"},
                                         {"if": {"state": "active"},
                                          "backgroundColor": PANEL_HI, "border": f"1px solid {GOLD}"}]),
         ]),
@@ -859,7 +872,7 @@ def _film_id_from_click(click):
 
 @app.callback(
     Output("film-poster", "children"), Output("film-meta", "children"),
-    Output("g-film-money", "figure"), Output("g-film-ranks", "figure"),
+    Output("g-film-money", "figure"), Output("film-ranks", "children"),
     Output("g-film-scatter", "figure"), Output("film-picker", "value"),
     Input("film-picker", "value"),
     *[Input(g, "clickData") for g in CLICK_GRAPHS],
@@ -887,7 +900,7 @@ def spotlight(picker_id, *args):
     r = row.iloc[0]
     # Don't echo a value back to the picker when the picker (or initial load) is the source.
     new_value = no_update if trig in (None, "film-picker") else fid
-    return (poster_block(r), film_meta(r), fig_money(r), fig_ranks(r),
+    return (poster_block(r), film_meta(r), fig_money(r), film_ranks(r),
             fig_film_scatter(r), new_value)
 
 
