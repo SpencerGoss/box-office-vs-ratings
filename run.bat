@@ -6,12 +6,12 @@ REM Requires: Python 3.10+ on PATH. No database needed (bundled CSV fallback).
 
 cd /d "%~dp0"
 
-if not exist venv (
+if not exist .venv (
     echo Creating virtual environment...
-    python -m venv venv || goto :error
+    python -m venv .venv || goto :error
 )
 
-call venv\Scripts\activate.bat
+call .venv\Scripts\activate.bat
 
 echo Installing dependencies (fast if already installed)...
 pip install -r requirements.txt -q || goto :error
