@@ -26,7 +26,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import requests
-from dash import Dash, Input, Output, State, callback_context, dash_table, dcc, html, no_update
+from dash import (ALL, Dash, Input, Output, State, callback_context, dash_table, dcc, html,
+                  no_update)
 from dotenv import load_dotenv
 from plotly.subplots import make_subplots
 from sqlalchemy import create_engine, text
@@ -38,17 +39,17 @@ load_dotenv()
 
 # ---- "movie theater" palette: warm espresso canvas + the classic teal-and-orange
 # film-grading scheme (cinema gold/amber warm, teal as the complementary cool) ----
-BG = "#0F0C08"          # near-black warm — a dark theater
-PANEL = "#1A1510"       # rich dark — cards / chart panels
-PANEL_HI = "#241D14"    # table header, hover, raised bits
-BORDER = "#352A1D"      # subtle warm border
-INK = "#F2E8D4"         # parchment / cream (primary text)
-MUTED = "#A89A7C"       # warm grey text
-GRID = "#292117"        # chart gridlines
-GOLD = "#E2A92C"        # rich antique gold — primary (box office, hits, winners)
-ORANGE = "#D17C28"      # deep amber — secondary (returns, ROI, profitable)
-RED = "#B8362C"         # curtain crimson — losses / flops
-TEAL = "#4E7E78"        # deep muted petrol — a single restrained cool accent
+BG = "#100D08"          # near-black warm — a dark theater
+PANEL = "#1C1710"       # dark — cards / chart panels
+PANEL_HI = "#272016"    # table header, hover, raised bits
+BORDER = "#3A2F20"      # subtle warm border
+INK = "#FAF2E0"         # bright cream (primary text)
+MUTED = "#B0A284"       # warm grey text
+GRID = "#2C2418"        # chart gridlines
+GOLD = "#FFC22E"        # vivid marquee gold — primary (box office, hits, winners)
+ORANGE = "#FF811A"      # vivid orange — secondary (returns, ROI, profitable)
+RED = "#FB3A2E"         # vivid red — losses / flops
+TEAL = "#1ED6C6"        # electric cyan — the cool pop (teal-and-orange, vivid)
 ACCENT = GOLD
 PAGE_BG = BG
 SHADOW = "0 2px 10px rgba(0,0,0,0.50)"
@@ -284,35 +285,59 @@ def fig_perf_donut(df):
     return style(fig, "Hit / profitable / flop mix", height=430)
 
 
-def fig_leaderboard(df, value_col, title, *, n=10, largest=True, money_fmt=True,
-                    suffix="", color=PALETTE[0], min_budget=None, height=430):
-    """Horizontal 'top N films' bar — the crowd-pleaser view. Each bar carries its
-    film_id in customdata so a click opens that film in the spotlight."""
+# ===========================================================================
+# Top-films poster wall (ranked top-10 cards with posters + numbers)
+# ===========================================================================
+# tab_id -> (value column, take-largest?, money-format?, suffix, min-budget)
+TOP_CATS = {
+    "rev":    ("revenue", True, True, "", None),
+    "profit": ("profit", True, True, "", None),
+    "mult":   ("revenue_multiple", True, False, "×", 10_000_000),
+    "flop":   ("profit", False, True, "", None),
+}
+
+
+def top_card(rank, row, value_str):
+    """A ranked, clickable poster card for the Top-films wall."""
+    url = poster_url(row.get("imdb_id"))
+    if url:
+        art = html.Img(src=url, style={"width": "100%", "aspectRatio": "2 / 3",
+                                       "objectFit": "cover", "borderRadius": "8px",
+                                       "display": "block"})
+    else:
+        art = html.Div(row["title"], style={
+            "width": "100%", "aspectRatio": "2 / 3", "borderRadius": "8px",
+            "backgroundColor": PANEL_HI, "color": MUTED, "fontSize": "0.72rem",
+            "textAlign": "center", "padding": "0 6px", "display": "flex",
+            "alignItems": "center", "justifyContent": "center"})
+    return html.Div([
+        html.Div(f"#{rank}", style={
+            "position": "absolute", "top": "6px", "left": "6px", "backgroundColor": GOLD,
+            "color": BG, "fontFamily": HEAD_FONT, "fontWeight": 700, "fontSize": "0.8rem",
+            "padding": "0 8px", "borderRadius": "6px", "boxShadow": SHADOW}),
+        art,
+        html.Div(row["title"], title=f"{row['title']} ({int(row['release_year'])})",
+                 style={"fontSize": "0.74rem", "color": INK, "fontWeight": 600,
+                        "marginTop": "5px", "whiteSpace": "nowrap", "overflow": "hidden",
+                        "textOverflow": "ellipsis"}),
+        html.Div(value_str, style={"fontSize": "0.85rem", "color": GOLD, "fontWeight": 700}),
+    ], id={"type": "topcard", "index": int(row["film_id"])}, n_clicks=0,
+        className="topcard", style={"position": "relative", "cursor": "pointer"})
+
+
+def top_wall(cat, df):
+    col, largest, money_fmt, suffix, min_budget = TOP_CATS.get(cat, TOP_CATS["rev"])
     d = df if min_budget is None else df[df["budget"] >= min_budget]
-    d = d.nlargest(n, value_col) if largest else d.nsmallest(n, value_col)
-    d = d.sort_values(value_col, ascending=True)  # #1 ends up at the top of the axis
     if d.empty:
-        return style(go.Figure(), title, height=height)
-    text = d[value_col].map(money) if money_fmt else d[value_col].map(lambda v: f"{v:,.1f}{suffix}")
-    short = [t if len(t) <= 26 else t[:25] + "…" for t in d["title"]]  # keep long titles off the bars
-    # Negative (loss) bars grow leftward toward the axis labels, so anchor their value
-    # labels INSIDE at the zero end (white text); positive bars label outside on the right.
-    negative = bool((d[value_col] < 0).any())
-    fig = go.Figure(go.Bar(
-        x=d[value_col], y=d["title"], orientation="h", marker_color=color,
-        customdata=d["film_id"], text=text,
-        textposition="inside" if negative else "outside", insidetextanchor="start",
-        textfont=dict(color="white" if negative else INK, size=11), cliponaxis=False,
-        hovertext=[f"{t} ({int(y)}) · ⭐ {r:.1f}" for t, y, r
-                   in zip(d["title"], d["release_year"], d["vote_average"])],
-        hoverinfo="text"))
-    fig.update_yaxes(tickmode="array", tickvals=list(d["title"]), ticktext=short,
-                     tickfont=dict(size=10), automargin=True)
-    fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False)
-    lo, hi = min(0, d[value_col].min()), max(0, d[value_col].max())
-    pad = (hi - lo) * 0.18 or 1
-    fig.update_xaxes(range=[lo - pad * 0.2, hi + pad])
-    return style(fig, title, height=height)
+        return html.Div("No films match the current filters.",
+                        style={"color": MUTED, "padding": "1rem 0"})
+    d = d.nlargest(10, col) if largest else d.nsmallest(10, col)
+    cards = []
+    for i, (_, row) in enumerate(d.iterrows(), start=1):
+        v = row[col]
+        cards.append(dbc.Col(top_card(i, row, money(v) if money_fmt else f"{v:.1f}{suffix}"),
+                             xs=6, sm=4, md=3, lg=2))
+    return dbc.Row(cards, className="g-3")
 
 
 # ===========================================================================
@@ -473,7 +498,7 @@ def poster_block(row):
 
 def film_meta(row):
     perf_color = PERF_COLORS.get(row["performance"], MUTED)
-    badge_text = "#0F0C08" if perf_color == GOLD else "white"
+    badge_text = "#100D08" if perf_color == GOLD else "white"
     rt = f"{int(row['runtime'])} min" if pd.notna(row["runtime"]) else "—"
     return html.Div([
         html.Span(row["title"], style={"fontFamily": HEAD_FONT, "fontWeight": 600,
@@ -558,34 +583,38 @@ app.index_string = """<!DOCTYPE html>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  html, body { background:#0F0C08; color:#F2E8D4; }
-  ::selection { background:#E2A92C; color:#0F0C08; }
+  html, body { background:#100D08; color:#FAF2E0; }
+  ::selection { background:#FFC22E; color:#100D08; }
   /* Dropdown (Dash 3 native) */
-  .dash-dropdown, .dash-dropdown-trigger { background:#1A1510 !important; border-color:#352A1D !important;
-      color:#F2E8D4 !important; border-radius:6px; }
-  .dash-dropdown-value, .dash-dropdown-value-item span, .dash-dropdown-placeholder { color:#F2E8D4 !important; }
+  .dash-dropdown, .dash-dropdown-trigger { background:#1C1710 !important; border-color:#3A2F20 !important;
+      color:#FAF2E0 !important; border-radius:6px; }
+  .dash-dropdown-value, .dash-dropdown-value-item span, .dash-dropdown-placeholder { color:#FAF2E0 !important; }
   /* open menu popup */
-  .dash-dropdown-content { background:#1A1510 !important; color:#F2E8D4 !important;
-      border:1px solid #352A1D !important; }
-  .dash-dropdown-search { background:#0F0C08 !important; color:#F2E8D4 !important;
-      border:1px solid #352A1D !important; }
-  .dash-options-list, .dash-dropdown-options { background:#1A1510 !important; color:#F2E8D4 !important; }
-  .dash-options-list-option, .dash-dropdown-option { color:#F2E8D4 !important; background:transparent !important; }
-  .dash-options-list-option:hover, .dash-dropdown-option:hover { background:#241D14 !important;
-      color:#E2A92C !important; }
-  .dash-dropdown-action-button { color:#E2A92C !important; background:transparent !important; }
+  .dash-dropdown-content { background:#1C1710 !important; color:#FAF2E0 !important;
+      border:1px solid #3A2F20 !important; }
+  .dash-dropdown-search { background:#100D08 !important; color:#FAF2E0 !important;
+      border:1px solid #3A2F20 !important; }
+  .dash-options-list, .dash-dropdown-options { background:#1C1710 !important; color:#FAF2E0 !important; }
+  .dash-options-list-option, .dash-dropdown-option { color:#FAF2E0 !important; background:transparent !important; }
+  .dash-options-list-option:hover, .dash-dropdown-option:hover { background:#272016 !important;
+      color:#FFC22E !important; }
+  .dash-dropdown-action-button { color:#FFC22E !important; background:transparent !important; }
   /* Range slider (Dash 3 native) */
-  .dash-slider-track { background:#352A1D !important; }
-  .dash-slider-range { background:#E2A92C !important; }
-  .dash-slider-handle { background:#E2A92C !important; border-color:#E2A92C !important; }
-  .dash-slider-mark-text { color:#A89A7C !important; }
-  .dash-range-slider-input { background:#1A1510 !important; color:#F2E8D4 !important; border-color:#352A1D !important; }
+  .dash-slider-track { background:#3A2F20 !important; }
+  .dash-slider-range { background:#FFC22E !important; }
+  .dash-slider-handle { background:#FFC22E !important; border-color:#FFC22E !important; }
+  .dash-slider-mark-text { color:#B0A284 !important; }
+  .dash-range-slider-input { background:#1C1710 !important; color:#FAF2E0 !important; border-color:#3A2F20 !important; }
   /* Tabs */
-  .nav-tabs { border-bottom:1px solid #352A1D !important; }
-  .nav-tabs .nav-link { color:#A89A7C !important; border:none !important; font-weight:500; }
-  .nav-tabs .nav-link:hover { color:#F2E8D4 !important; }
-  .nav-tabs .nav-link.active { color:#E2A92C !important; background:transparent !important;
-      border-bottom:2px solid #E2A92C !important; }
+  .nav-tabs { border-bottom:1px solid #3A2F20 !important; }
+  .nav-tabs .nav-link { color:#B0A284 !important; border:none !important; font-weight:500; }
+  .nav-tabs .nav-link:hover { color:#FAF2E0 !important; }
+  .nav-tabs .nav-link.active { color:#FFC22E !important; background:transparent !important;
+      border-bottom:2px solid #FFC22E !important; }
+  /* Top-films poster cards */
+  .topcard { transition: transform .12s ease; }
+  .topcard:hover { transform: translateY(-4px); }
+  .topcard:hover img { outline: 2px solid #FFC22E; outline-offset: 1px; }
 </style>
 </head>
 <body>{%app_entry%}<footer>{%config%}{%scripts%}{%renderer%}</footer></body>
@@ -671,16 +700,15 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
     # ---- tabs ----
     html.Div(card(dbc.Tabs(active_tab="t-top", children=[
         dbc.Tab(label="Top films", tab_id="t-top", children=[
-            html.P("Biggest winners and losers in the current selection. Click a bar to open a film.",
+            html.P("The top 10 in each category — click a poster to open that film above.",
                    className="mt-2 mb-2", style={"fontSize": "0.82rem", "color": MUTED}),
-            dbc.Row([
-                dbc.Col(graph("g-top-rev", "42vh"), lg=6),
-                dbc.Col(graph("g-top-profit", "42vh"), lg=6),
-            ], className="g-3"),
-            dbc.Row([
-                dbc.Col(graph("g-top-mult", "42vh"), lg=6),
-                dbc.Col(graph("g-top-loss", "42vh"), lg=6),
-            ], className="g-3 mt-0"),
+            dbc.Tabs(id="top-cat", active_tab="rev", children=[
+                dbc.Tab(label="Biggest box office", tab_id="rev"),
+                dbc.Tab(label="Most profitable", tab_id="profit"),
+                dbc.Tab(label="Best bang for the buck", tab_id="mult"),
+                dbc.Tab(label="Biggest flops", tab_id="flop"),
+            ]),
+            dcc.Loading(html.Div(id="top-grid", className="mt-3"), color=GOLD, type="dot"),
         ]),
         dbc.Tab(label="Compare films", tab_id="t-compare", children=[
             html.P("Pick any two films to see their money and ratings head-to-head — "
@@ -754,8 +782,6 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
     Output("g-scatter", "figure"), Output("g-band", "figure"),
     Output("g-genre-bar", "figure"),
     Output("g-tier", "figure"), Output("g-perf", "figure"),
-    Output("g-top-rev", "figure"), Output("g-top-profit", "figure"),
-    Output("g-top-mult", "figure"), Output("g-top-loss", "figure"),
     Output("film-table", "data"),
     Input("f-genre", "value"), Input("f-decade", "value"),
     Input("f-tier", "value"), Input("f-year", "value"),
@@ -764,7 +790,7 @@ def update(genres, decades, tiers, year_range):
     df = apply_filters(FILMS, genres, decades, tiers, year_range)
     if df.empty:
         e = style(go.Figure(), "No films match the current filters")
-        return ("0", "—", "—", "$0", "$0", "—", e, e, e, e, e, e, e, e, e, [])
+        return ("0", "—", "—", "$0", "$0", "—", e, e, e, e, e, [])
 
     profit_txt = money(df["profit"].sum())
     box_txt = money(df["revenue"].sum())
@@ -780,16 +806,11 @@ def update(genres, decades, tiers, year_range):
         profit_txt, f"{hits:.0f}%",
         fig_scatter(df), fig_rating_band(df), fig_genre_bar(g),
         fig_tier_bars(df), fig_perf_donut(df),
-        fig_leaderboard(df, "revenue", "Biggest box office", color=GOLD),
-        fig_leaderboard(df, "profit", "Most profitable", color=ORANGE),
-        fig_leaderboard(df, "revenue_multiple", "Best bang for the buck  (budget ≥ $10M)",
-                        money_fmt=False, suffix="×", color=TEAL, min_budget=10_000_000),
-        fig_leaderboard(df, "profit", "Biggest flops", largest=False, color=RED),
         table,
     )
 
 
-CLICK_GRAPHS = ["g-scatter", "g-top-rev", "g-top-profit", "g-top-mult", "g-top-loss"]
+CLICK_GRAPHS = ["g-scatter"]
 
 
 def _film_id_from_click(click):
@@ -832,6 +853,30 @@ def spotlight(picker_id, *args):
     new_value = no_update if trig in (None, "film-picker") else fid
     return (poster_block(r), film_meta(r), fig_money(r), fig_ranks(r),
             fig_film_scatter(r), new_value)
+
+
+@app.callback(
+    Output("top-grid", "children"),
+    Input("top-cat", "active_tab"),
+    Input("f-genre", "value"), Input("f-decade", "value"),
+    Input("f-tier", "value"), Input("f-year", "value"),
+)
+def top_grid(cat, genres, decades, tiers, year_range):
+    df = apply_filters(FILMS, genres, decades, tiers, year_range)
+    return top_wall(cat, df)
+
+
+@app.callback(
+    Output("film-picker", "value", allow_duplicate=True),
+    Input({"type": "topcard", "index": ALL}, "n_clicks"),
+    prevent_initial_call=True,
+)
+def open_from_card(_clicks):
+    """Clicking a poster card sets the picker, which drives the film page above."""
+    trig = callback_context.triggered
+    if not trig or not trig[0]["value"]:   # fired only on a real click (n_clicks > 0)
+        return no_update
+    return callback_context.triggered_id["index"]
 
 
 @app.callback(
