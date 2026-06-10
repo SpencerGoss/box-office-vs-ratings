@@ -64,13 +64,16 @@ default view and is opt-in via the slider.
 ### How to run
 
 **The quick way — no database needed.** The repo ships with the data
-(`data/films_enriched.csv`) and a poster cache, so on any machine with **Python 3.12+**:
+(`data/films_enriched.csv`) and a poster cache, so on any machine with **Python 3.10+**:
 
 ```bash
 pip install -r requirements.txt
 python app.py
 # → open http://127.0.0.1:8050
 ```
+
+On Windows, **`run.bat`** does all of it in one double-click (creates a venv, installs
+`requirements.txt`, launches the app, and opens the browser).
 
 That's it — no PostgreSQL, no `.env`, no setup. (Movie poster images load from TMDB, so
 they need internet; everything else works offline.)
@@ -189,6 +192,7 @@ Secrets live in `.env` (gitignored). `.env.example` is the committed template.
 box-office-vs-ratings/
 │
 ├── app.py                     Interactive Dash analytics application (the film explorer)
+├── run.bat                    One-click Windows setup + launch (venv, deps, app)
 ├── etl_pipeline.py            Full single-file ETL pipeline (extract→transform→validate→load)
 ├── load_script.py             Initial PostgreSQL load script (superseded by etl_pipeline.py)
 ├── fetch_posters.py           One-time TMDB poster pre-cache for the dashboard
