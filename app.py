@@ -469,11 +469,17 @@ def fig_money(row):
     colors = [MUTED, ORANGE, GOLD if row["profit"] >= 0 else RED]
     fig = go.Figure(go.Bar(
         x=vals, y=labels, orientation="h", marker_color=colors,
-        text=[money(v) for v in vals], textposition="outside",
-        textfont=dict(size=12, color=INK), cliponaxis=False, showlegend=False))
+        text=[money(v) for v in vals],
+        # negative (unprofitable) bars grow left toward the labels — label them inside.
+        textposition=["outside", "outside", "inside" if row["profit"] < 0 else "outside"],
+        insidetextanchor="start", textfont=dict(size=12, color=INK), cliponaxis=False,
+        showlegend=False))
     fig.update_yaxes(autorange="reversed", tickfont=dict(size=11, color=INK))
-    fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=True, zerolinecolor=GRID)
-    fig.update_xaxes(range=[min(0, min(vals)) * 1.05, max(vals) * 1.28])
+    lo, hi = min(0, min(vals)), max(vals)
+    span = (hi - lo) or 1
+    fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=True,
+                     zerolinecolor=MUTED, zerolinewidth=1,
+                     range=[lo - span * 0.10, hi + span * 0.22])
     return style(fig, "The money", height=235)
 
 
