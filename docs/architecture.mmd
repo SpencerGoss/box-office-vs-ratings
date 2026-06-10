@@ -1,0 +1,17 @@
+%% Architecture diagram source (Mermaid). docs/architecture.png is rendered from this.
+flowchart LR
+  TMDB["TMDB API<br/>/discover/movie + /movie/:id<br/>+ /genre/movie/list"] -->|"requests<br/>retry + backoff"| RAW[("Raw JSON cache<br/>data/raw/*.json")]
+  RAW --> EX
+  subgraph PIPE["etl_pipeline.py — single re-runnable script"]
+    EX["EXTRACT<br/>cached by default,<br/>--refresh re-pulls live"] --> TR["TRANSFORM<br/>pandas clean + dedupe,<br/>data-quality filter,<br/>derived metrics"]
+    TR --> VA["VALIDATE<br/>7 data-quality checks,<br/>PASS/FAIL logging"]
+    VA --> LD["LOAD<br/>idempotent upserts<br/>INSERT ... ON CONFLICT"]
+  end
+  LD --> PG[("PostgreSQL 17 — boxoffice<br/>3NF: films, genres, film_genres<br/>+ v_films_enriched view")]
+  VA --> CSV[("CSV snapshots<br/>data/films_enriched.csv<br/>data/genre_decade_summary.csv")]
+  PG -->|"live SQL<br/>(SQLAlchemy)"| APP["Dash + Plotly dashboard<br/>app.py — the film explorer"]
+  CSV -.->|"automatic fallback<br/>if DB unreachable"| APP
+  style TMDB fill:#1a3a5c,stroke:#444,color:#fff
+  style PG fill:#336791,stroke:#444,color:#fff
+  style APP fill:#7a1f2b,stroke:#444,color:#fff
+  style CSV fill:#5c5c1a,stroke:#444,color:#fff
