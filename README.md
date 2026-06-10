@@ -17,6 +17,30 @@ TMDB API ─► ETL (clean · validate · load) ─► PostgreSQL (boxoffice, 3N
 
 ---
 
+## Live demo
+
+The app is deployed and publicly accessible, with no install required:
+
+### ▶ https://box-office-vs-ratings.onrender.com
+
+Open the link in any browser, on any device with internet, and start exploring:
+
+- **Search a film** in the top search box (or click any chart bar, scatter point, or
+  table row) to open its full breakdown: poster, budget to revenue to profit, percentile
+  rankings, and where the film sits on the ratings-vs-returns scatter of every film.
+- **Use the tabs** to browse the top-10 poster walls (biggest box office, most profitable,
+  best return, biggest flops), compare any two films head to head, browse the full sortable
+  table, or view the ratings-vs-returns and "what makes money" analyses.
+- **Adjust the filters** (genre, decade, budget tier, release-year range) to recompute every
+  KPI card, chart, and table.
+
+**Hosting notes:** it runs on Render's free tier off the bundled data, so no database is
+needed. The free instance sleeps after about 15 minutes of inactivity, so the first visit
+after an idle period takes 30 to 60 seconds to wake up and then loads quickly. Before
+presenting, open the link a couple of minutes ahead so it is already warm.
+
+---
+
 ## The Dash application: `app.py`
 
 An interactive **film explorer** connected live to PostgreSQL, designed for a live demo:
@@ -78,8 +102,9 @@ virtual environment, installs `requirements.txt`, launches the app, and opens th
 No PostgreSQL, environment file, or additional configuration is required. (Movie poster
 images load from TMDB and therefore require internet access; everything else works offline.)
 
-**Hosted live URL (optional):** see [`DEPLOY.md`](DEPLOY.md) for one-click deploy to a free
-Render web service from GitHub (also database-free, uses the bundled CSV).
+**Hosted live URL:** the app is live at **https://box-office-vs-ratings.onrender.com** (see
+[Live demo](#live-demo) above). [`DEPLOY.md`](DEPLOY.md) documents the Render setup, which is
+also database-free and uses the bundled CSV.
 
 **With the full PostgreSQL pipeline (optional):** copy `.env.example` → `.env` with your DB
 credentials, run `python etl_pipeline.py` to build/load the database, then `python app.py`.
