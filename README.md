@@ -54,7 +54,10 @@ the page becomes a full breakdown of that film:
 
 Six KPIs — **films shown, avg rating, median return, total box office, total profit, and
 hit rate (films that earned ≥2× their budget)** — recompute with the filters (genre,
-decade, budget tier, and a release-year range), as do every chart and the table.
+decade, budget tier, and a release-year range), as do every chart and the table. The
+release-year filter **defaults to 2000–2025**: 2026 is partial year-to-date (only the
+biggest early releases have data, so its averages skew high), so it's kept out of the
+default view and is opt-in via the slider.
 
 ### How to run
 

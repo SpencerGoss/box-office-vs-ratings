@@ -146,6 +146,9 @@ FILMS = load_films()
 ALL_GENRES = sorted({g for gl in FILMS["genre_list"] for g in gl})
 ALL_DECADES = sorted(FILMS["decade"].dropna().unique())
 YEAR_MIN, YEAR_MAX = int(FILMS["release_year"].min()), int(FILMS["release_year"].max())
+# 2026 is partial year-to-date (few films, revenue still climbing → skewed high), so the
+# year filter DEFAULTS to the last complete year; 2026 stays available (opt-in via slider).
+YEAR_COMPLETE = min(2025, YEAR_MAX)
 # Film-picker options (value = film_id), sorted by popularity-ish (vote_count).
 PICKER_OPTS = [{"label": f"{r.title} ({r.release_year})", "value": int(r.film_id)}
                for r in FILMS.sort_values("vote_count", ascending=False).itertuples()]
@@ -759,9 +762,10 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
                  dd("f-decade", ALL_DECADES, "All decades")], md=2),
         dbc.Col([html.Small("BUDGET TIER", className="fw-bold", style={"color": MUTED}),
                  dd("f-tier", TIER_ORDER, "All tiers")], md=3),
-        dbc.Col([html.Small("RELEASE-YEAR RANGE", className="fw-bold", style={"color": MUTED}),
+        dbc.Col([html.Small("RELEASE-YEAR RANGE ", className="fw-bold", style={"color": MUTED}),
+                 html.Small("· 2026 is year-to-date", style={"color": MUTED, "fontSize": "0.7rem"}),
                  dcc.RangeSlider(id="f-year", min=YEAR_MIN, max=YEAR_MAX, step=1,
-                                 value=[YEAR_MIN, YEAR_MAX],
+                                 value=[YEAR_MIN, YEAR_COMPLETE],
                                  marks={y: str(y) for y in range(YEAR_MIN, YEAR_MAX + 1, 5)},
                                  tooltip={"placement": "bottom"})], md=4),
     ], className="g-3 align-items-start")),
