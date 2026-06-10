@@ -13,6 +13,8 @@ any specific film?
 TMDB API ─► ETL (clean · validate · load) ─► PostgreSQL (boxoffice, 3NF) ─► Dash app (live SQL)
 ```
 
+![Architecture](docs/architecture.png)
+
 ---
 
 ## The Dash application — `app.py`
@@ -62,7 +64,7 @@ default view and is opt-in via the slider.
 ### How to run
 
 **The quick way — no database needed.** The repo ships with the data
-(`data/films_for_powerbi.csv`) and a poster cache, so on any machine with **Python 3.12+**:
+(`data/films_enriched.csv`) and a poster cache, so on any machine with **Python 3.12+**:
 
 ```bash
 pip install -r requirements.txt
@@ -89,7 +91,7 @@ filter the in-memory frame for instant interactivity. The "Refresh data" button 
 the live database.
 
 For a live demo it degrades gracefully: if PostgreSQL is unreachable at startup it
-automatically falls back to the `data/films_for_powerbi.csv` snapshot (which mirrors the
+automatically falls back to the `data/films_enriched.csv` snapshot (which mirrors the
 view), and the header reflects the active data source. Posters are served from a local
 cache (`data/posters.json`); a missing poster fetches once from TMDB and otherwise shows a
 placeholder — never a live dependency that can break the demo.
@@ -105,7 +107,7 @@ placeholder — never a live dependency that can break the demo.
   the best ratings — large bets are well-vetted; the smallest films are the riskiest.
 - **Genre matters most.** **Animation** is the sweet spot (high ratings *and* strong
   returns); **Documentaries** post the highest median ROI; Westerns and War the lowest.
-- **~45% of films are outright hits** (returning ≥2× their budget).
+- **~47% of films are outright hits** (returning ≥2× their budget).
 - **Methodology note:** the project reports **medians**, not means, throughout — a few
   genuine micro-budget viral hits still return huge multiples and would skew any average.
 
@@ -147,7 +149,7 @@ python etl_pipeline.py --refresh  # re-pull from the live TMDB API first
 python etl_pipeline.py --csv-only # skip PostgreSQL, only write the CSVs
 ```
 
-It also exports analytics-ready CSV snapshots (`data/films_for_powerbi.csv`,
+It also exports analytics-ready CSV snapshots (`data/films_enriched.csv`,
 `data/genre_decade_summary.csv`) as a portable, no-database fallback.
 
 ## Database schema (3NF)
@@ -181,21 +183,51 @@ Secrets live in `.env` (gitignored). `.env.example` is the committed template.
 - **Dash 4 · Plotly 6 · dash-bootstrap-components** (interactive app)
 - PostgreSQL 17 (local)
 
-## Repo layout
+## Repository structure
 
 ```
-app.py                    Interactive Dash analytics application (the film explorer)
-etl_pipeline.py           Full single-file ETL pipeline (extract→transform→validate→load)
-fetch_posters.py          One-time TMDB poster pre-cache for the dashboard
-schema_documentation.md   Schema docs + ER diagram
-load_script.py            Initial PostgreSQL load script (Week 2)
-DEPLOY.md                 How to host a free live URL (Render) + run locally
-Procfile, .python-version Deployment config (gunicorn start command, Python pin)
-src/extract/              Standalone TMDB fetcher
-docs/screenshots/         App screenshots
-data/                     bundled CSV snapshots + poster cache (raw JSON gitignored)
-requirements.txt          Python dependencies
+box-office-vs-ratings/
+│
+├── app.py                     Interactive Dash analytics application (the film explorer)
+├── etl_pipeline.py            Full single-file ETL pipeline (extract→transform→validate→load)
+├── load_script.py             Initial PostgreSQL load script (Week 2)
+├── fetch_posters.py           One-time TMDB poster pre-cache for the dashboard
+├── schema_documentation.md    Database schema documentation + ER diagram (.pdf copy too)
+├── sample_run_output.txt      Captured full ETL run — DB-loading & validation evidence
+│
+├── sql/
+│   ├── schema.sql             DDL export (canonical copy is inlined in etl_pipeline.py)
+│   └── example_queries.sql    Verification + example analysis queries
+├── docs/
+│   ├── project_proposal.md    Finalized project proposal (Week 1, updated to as-built)
+│   ├── data_source_plan.md    Finalized TMDB data-source plan
+│   ├── architecture.png/.mmd  Pipeline architecture diagram (+ Mermaid source)
+│   └── screenshots/           App screenshots
+├── data/                      Bundled CSV snapshots + poster cache (raw JSON gitignored)
+├── src/extract/               Standalone TMDB fetcher (Week 2 extract stage)
+├── tests/                     Verification & doc-generation utility scripts
+│
+├── DEPLOY.md                  How to host a free live URL (Render) + run locally
+├── Procfile, .python-version  Deployment config (gunicorn start command, Python pin)
+├── requirements.txt           Python dependencies
+└── .gitignore
 ```
+
+## Course deliverables map
+
+| Deliverable | Where |
+|-------------|-------|
+| Project proposal | [`docs/project_proposal.md`](docs/project_proposal.md) |
+| Data source plan | [`docs/data_source_plan.md`](docs/data_source_plan.md) |
+| ER diagram + schema documentation | [`schema_documentation.md`](schema_documentation.md) (+ [PDF](schema_documentation.pdf)) |
+| Initial load script | [`load_script.py`](load_script.py) |
+| ETL pipeline | [`etl_pipeline.py`](etl_pipeline.py) |
+| Validation framework | the 7 data-quality checks in [`etl_pipeline.py`](etl_pipeline.py) — see [`sample_run_output.txt`](sample_run_output.txt) for a captured PASS/FAIL run |
+| Logging & error handling | `logging` (console + `logs/`), API retry/backoff, graceful DB-unreachable fallback — all in [`etl_pipeline.py`](etl_pipeline.py) |
+| Dashboard | [`app.py`](app.py) (Dash + Plotly, live PostgreSQL) |
+| Architecture diagram | [`docs/architecture.png`](docs/architecture.png) |
+| SQL scripts | [`sql/`](sql/) |
+| Screenshots / demo materials | [`docs/screenshots/`](docs/screenshots/) + [`DEPLOY.md`](DEPLOY.md) (live URL) |
 
 ## Data source
 

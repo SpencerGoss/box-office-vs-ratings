@@ -1,7 +1,7 @@
 # Deploying the dashboard to a live URL (free)
 
 The app runs **without a database** in the cloud — it auto-falls back to the committed
-`data/films_for_powerbi.csv` (5,659 films) and the cached `data/posters.json`, so there's
+`data/films_enriched.csv` (5,659 films) and the cached `data/posters.json`, so there's
 nothing to provision. Host it on **Render**'s free tier.
 
 Files that make this work (already in the repo): `Procfile`, `.python-version`,

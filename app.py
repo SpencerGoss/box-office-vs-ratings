@@ -88,7 +88,7 @@ FILMS_SQL = text("""
 
 
 CSV_FALLBACK = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                            "data", "films_for_powerbi.csv")
+                            "data", "films_enriched.csv")
 DATA_SOURCE = "Live PostgreSQL"  # overwritten by load_films() if the DB is unreachable
 
 

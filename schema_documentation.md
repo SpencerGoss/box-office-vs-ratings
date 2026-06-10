@@ -37,7 +37,7 @@ The database contains three tables and one view:
 
 **Purpose**
 
-Stores one row per movie that survives the cleaning rules (`vote_count >= 100`, `budget > 0`, `revenue > 0`). This is the central fact-style table — every financial or rating column referenced by the Power BI dashboard lives here.
+Stores one row per movie that survives the cleaning rules (`vote_count >= 100`, `budget > 0`, `revenue > 0`). This is the central fact-style table — every financial or rating column referenced by the analytics dashboard lives here.
 
 **Examples**
 
@@ -147,7 +147,7 @@ Inception (`film_id = 27205`) is classified as Action (`genre_id = 28`), Adventu
 
 **Purpose**
 
-A declarative (non-materialized) view that joins the three tables and exposes derived columns for direct consumption by Power BI and pandas. Because the view is declarative, it always reflects the current state of `films` and `film_genres`.
+A declarative (non-materialized) view that joins the three tables and exposes derived columns for direct consumption by the Dash analytics application (`app.py`) and pandas. Because the view is declarative, it always reflects the current state of `films` and `film_genres`.
 
 **Derived Columns**
 
@@ -187,7 +187,7 @@ Film data is sourced from **The Movie Database (TMDB) API** through a two-stage 
 
 After the second stage, any film with `budget = 0` or `revenue = 0` is dropped. TMDB reports zero for these fields on many older or less-documented titles, and including them would distort the analysis. The cleaning rules (`vote_count >= 100`, `budget > 0`, `revenue > 0`) are applied in both the Python filter and as `CHECK` constraints on `films`.
 
-**Stricter data-quality filter (transform layer).** The `> 0` rules above are necessary but not sufficient, because TMDB has two systematic problems for a *box-office* analysis: (1) **streaming-first films** (Netflix/Amazon — *The Gray Man* $200M→$0.45M, *The Irishman*, *Red Notice*) record only a token qualifying-theatrical figure, so they look like nine-figure flops; (2) **placeholder budgets/revenues** of $1–$5 pass `> 0` but produce absurd ROI. `clean_films()` therefore additionally keeps only films with **budget ≥ $1,000**, **revenue ≥ $1,000**, and **revenue ≥ 5% of budget**, dropping **349 rows**. The base-table `CHECK` constraints intentionally stay loose (`> 0`) so the raw load remains auditable; the stricter rules live in the Python transform and the `films_for_powerbi.csv` export.
+**Stricter data-quality filter (transform layer).** The `> 0` rules above are necessary but not sufficient, because TMDB has two systematic problems for a *box-office* analysis: (1) **streaming-first films** (Netflix/Amazon — *The Gray Man* $200M→$0.45M, *The Irishman*, *Red Notice*) record only a token qualifying-theatrical figure, so they look like nine-figure flops; (2) **placeholder budgets/revenues** of $1–$5 pass `> 0` but produce absurd ROI. `clean_films()` therefore additionally keeps only films with **budget ≥ $1,000**, **revenue ≥ $1,000**, and **revenue ≥ 5% of budget**, dropping **349 rows**. The base-table `CHECK` constraints intentionally stay loose (`> 0`) so the raw load remains auditable; the stricter rules live in the Python transform and the `films_enriched.csv` export.
 
 **Caveat on 2026 data.** 2026 is partial year-to-date — only 36 films loaded so far, and revenue figures continue to climb for recently released titles. Dashboards should either filter to `release_year <= 2025` or label 2026 explicitly as "YTD (incomplete)."
 

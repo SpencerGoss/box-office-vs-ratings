@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.environ["TMDB_READ_ACCESS_TOKEN"]
 HERE = os.path.dirname(os.path.abspath(__file__))
-CSV = os.path.join(HERE, "data", "films_for_powerbi.csv")
+CSV = os.path.join(HERE, "data", "films_enriched.csv")
 OUT = os.path.join(HERE, "data", "posters.json")
 N = int(os.environ.get("N", "400"))
 

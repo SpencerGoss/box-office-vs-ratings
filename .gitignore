@@ -24,7 +24,7 @@ __pycache__/
 data/raw/
 data/processed/
 # ...but keep the finalized analytics outputs as sample outputs
-!data/films_for_powerbi.csv
+!data/films_enriched.csv
 !data/genre_decade_summary.csv
 
 # IDE / OS
@@ -39,3 +39,6 @@ logs/
 
 # Dash app test artifacts
 .playwright-mcp/
+
+# Private presentation prep (not a repo deliverable)
+presentation/

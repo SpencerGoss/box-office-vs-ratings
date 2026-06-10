@@ -1,7 +1,7 @@
 """Initial PostgreSQL Load Script — Box Office vs. Ratings.
 
 Loads TMDB extract JSON into a 3NF PostgreSQL schema and exports a
-denormalized CSV snapshot. (The Power BI dashboard connects to PostgreSQL
+denormalized CSV snapshot. (The Dash analytics app connects to PostgreSQL
 directly via SQL; the CSV is a portable export.) Idempotent — every insert
 uses ON CONFLICT, so re-running the script never duplicates rows.
 
@@ -91,7 +91,7 @@ GROUP BY f.film_id;
 # ---------------------------------------------------------------------------
 HERE        = Path(__file__).resolve().parent
 RAW_DIR     = HERE / "data" / "raw"
-CSV_EXPORT  = HERE / "data" / "films_for_powerbi.csv"
+CSV_EXPORT  = HERE / "data" / "films_enriched.csv"
 
 
 def build_engine() -> Engine:

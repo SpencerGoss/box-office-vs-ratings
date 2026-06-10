@@ -13,9 +13,9 @@ A single, self-contained, reproducible Python ETL that:
                dtypes, ranges, referential integrity, row-count reconciliation)
                with informative logging and fail-fast on critical problems.
     LOAD       Idempotent upserts into a 3NF PostgreSQL schema (films / genres /
-               film_genres + v_films_enriched view). Power BI connects to this
-               schema directly via SQL; the pipeline also exports analytics-ready
-               CSV snapshots as a portable fallback. If Postgres is unreachable
+               film_genres + v_films_enriched view). The Dash analytics app
+               (app.py) queries this schema directly via SQL; the pipeline also
+               exports analytics-ready CSV snapshots as a portable fallback. If Postgres is unreachable
                the pipeline logs a warning and still produces the CSVs.
 
 The PostgreSQL schema, the ERD in schema_documentation.md, and this script's
@@ -55,7 +55,7 @@ RAW_DIR = HERE / "data" / "raw"
 DATA_DIR = HERE / "data"
 LOG_DIR = HERE / "logs"
 
-CSV_FILMS = DATA_DIR / "films_for_powerbi.csv"          # one enriched row per film
+CSV_FILMS = DATA_DIR / "films_enriched.csv"             # one enriched row per film
 CSV_SUMMARY = DATA_DIR / "genre_decade_summary.csv"     # aggregation layer
 LOG_FILE = LOG_DIR / "etl_pipeline.log"
 
@@ -795,7 +795,7 @@ def main(argv: list[str] | None = None) -> int:
                                    exc.__class__.__name__, exc)
 
         # --- always export the analytics-ready CSVs ---
-        export_csv(enriched, CSV_FILMS, "films_for_powerbi")
+        export_csv(enriched, CSV_FILMS, "films_enriched")
         export_csv(summary, CSV_SUMMARY, "genre_decade_summary")
 
         # --- 5. VERIFY / reconcile ---
