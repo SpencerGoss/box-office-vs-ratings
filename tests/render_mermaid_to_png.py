@@ -1,48 +1,67 @@
-"""Render the Mermaid ER diagram to PNG via the mermaid.ink service.
+"""Render docs/architecture.mmd (Mermaid source) to docs/architecture.png.
 
-Reads docs/er_diagram.md, extracts the ```mermaid ... ``` code block,
-base64-encodes it, and fetches the PNG from mermaid.ink (no Node.js install
-needed). Writes to submission/er_diagram.png.
+Renders locally via Edge headless + mermaid.js from CDN (mermaid.ink proved
+unreliable), then auto-crops the surrounding whitespace. Requires Pillow
+(`pip install pillow`) for the crop step; skips cropping if unavailable.
 """
 from __future__ import annotations
 
-import base64
-import re
+import subprocess
 import sys
-import urllib.request
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "docs" / "er_diagram.md"
-TARGET = ROOT / "submission" / "er_diagram.png"
+SOURCE = ROOT / "docs" / "architecture.mmd"
+TARGET = ROOT / "docs" / "architecture.png"
+EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 
-
-def extract_mermaid_block(md_text: str) -> str:
-    m = re.search(r"```mermaid\s*\n(.*?)\n```", md_text, flags=re.DOTALL)
-    if not m:
-        raise SystemExit("No ```mermaid ... ``` block found in er_diagram.md")
-    return m.group(1).strip()
+HTML_TEMPLATE = """<!DOCTYPE html><html><head><meta charset="utf-8">
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+mermaid.initialize({{ startOnLoad: true, theme: 'neutral', flowchart: {{ htmlLabels: true }} }});
+</script>
+<style>body{{margin:20px;background:white}}</style></head>
+<body><pre class="mermaid">{src}</pre></body></html>"""
 
 
 def main() -> int:
-    md = SOURCE.read_text(encoding="utf-8")
-    mermaid_src = extract_mermaid_block(md)
+    src = SOURCE.read_text(encoding="utf-8")
+    # strip Mermaid comment lines (%%) — they confuse the <pre> embedding
+    src = "\n".join(l for l in src.splitlines() if not l.strip().startswith("%%"))
+    escaped = src.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-    # mermaid.ink accepts URL-safe base64 of the Mermaid source.
-    encoded = base64.urlsafe_b64encode(mermaid_src.encode("utf-8")).decode("ascii")
-    url = f"https://mermaid.ink/img/{encoded}?type=png&bgColor=white"
+    html_path = ROOT / "docs" / "_arch_render.html"
+    html_path.write_text(HTML_TEMPLATE.format(src=escaped), encoding="utf-8")
+    try:
+        subprocess.run(
+            [
+                EDGE, "--headless", "--disable-gpu", "--window-size=1900,950",
+                "--virtual-time-budget=8000", f"--screenshot={TARGET}",
+                html_path.as_uri(),
+            ],
+            check=True, capture_output=True,
+        )
+        time.sleep(2)
+    finally:
+        html_path.unlink(missing_ok=True)
 
-    print(f"Fetching: {url[:80]}... ({len(encoded)} chars encoded)")
-    TARGET.parent.mkdir(parents=True, exist_ok=True)
-    req = urllib.request.Request(url, headers={
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                      "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0",
-        "Accept": "image/png,image/*,*/*",
-    })
-    with urllib.request.urlopen(req, timeout=30) as r:
-        data = r.read()
-    TARGET.write_bytes(data)
-    print(f"Wrote {len(data):,} bytes -> {TARGET}")
+    try:
+        from PIL import Image, ImageChops
+
+        img = Image.open(TARGET).convert("RGB")
+        bg = Image.new("RGB", img.size, (255, 255, 255))
+        bbox = ImageChops.difference(img, bg).getbbox()
+        if bbox:
+            pad = 16
+            img.crop((
+                max(bbox[0] - pad, 0), max(bbox[1] - pad, 0),
+                min(bbox[2] + pad, img.width), min(bbox[3] + pad, img.height),
+            )).save(TARGET)
+    except ImportError:
+        print("Pillow not installed -- skipping whitespace crop.")
+
+    print(f"Wrote {TARGET} ({TARGET.stat().st_size:,} bytes)")
     return 0
 
 

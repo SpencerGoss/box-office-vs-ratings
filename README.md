@@ -190,7 +190,7 @@ box-office-vs-ratings/
 │
 ├── app.py                     Interactive Dash analytics application (the film explorer)
 ├── etl_pipeline.py            Full single-file ETL pipeline (extract→transform→validate→load)
-├── load_script.py             Initial PostgreSQL load script (Week 2)
+├── load_script.py             Initial PostgreSQL load script (superseded by etl_pipeline.py)
 ├── fetch_posters.py           One-time TMDB poster pre-cache for the dashboard
 ├── schema_documentation.md    Database schema documentation + ER diagram (.pdf copy too)
 ├── sample_run_output.txt      Captured full ETL run — DB-loading & validation evidence
@@ -199,12 +199,12 @@ box-office-vs-ratings/
 │   ├── schema.sql             DDL export (canonical copy is inlined in etl_pipeline.py)
 │   └── example_queries.sql    Verification + example analysis queries
 ├── docs/
-│   ├── project_proposal.md    Finalized project proposal (Week 1, updated to as-built)
+│   ├── project_proposal.md    Project proposal (finalized to as-built)
 │   ├── data_source_plan.md    Finalized TMDB data-source plan
 │   ├── architecture.png/.mmd  Pipeline architecture diagram (+ Mermaid source)
 │   └── screenshots/           App screenshots
 ├── data/                      Bundled CSV snapshots + poster cache (raw JSON gitignored)
-├── src/extract/               Standalone TMDB fetcher (Week 2 extract stage)
+├── src/extract/               Standalone TMDB fetcher (early extract stage)
 ├── tests/                     Verification & doc-generation utility scripts
 │
 ├── DEPLOY.md                  How to host a free live URL (Render) + run locally
@@ -212,22 +212,6 @@ box-office-vs-ratings/
 ├── requirements.txt           Python dependencies
 └── .gitignore
 ```
-
-## Course deliverables map
-
-| Deliverable | Where |
-|-------------|-------|
-| Project proposal | [`docs/project_proposal.md`](docs/project_proposal.md) |
-| Data source plan | [`docs/data_source_plan.md`](docs/data_source_plan.md) |
-| ER diagram + schema documentation | [`schema_documentation.md`](schema_documentation.md) (+ [PDF](schema_documentation.pdf)) |
-| Initial load script | [`load_script.py`](load_script.py) |
-| ETL pipeline | [`etl_pipeline.py`](etl_pipeline.py) |
-| Validation framework | the 7 data-quality checks in [`etl_pipeline.py`](etl_pipeline.py) — see [`sample_run_output.txt`](sample_run_output.txt) for a captured PASS/FAIL run |
-| Logging & error handling | `logging` (console + `logs/`), API retry/backoff, graceful DB-unreachable fallback — all in [`etl_pipeline.py`](etl_pipeline.py) |
-| Dashboard | [`app.py`](app.py) (Dash + Plotly, live PostgreSQL) |
-| Architecture diagram | [`docs/architecture.png`](docs/architecture.png) |
-| SQL scripts | [`sql/`](sql/) |
-| Screenshots / demo materials | [`docs/screenshots/`](docs/screenshots/) + [`DEPLOY.md`](DEPLOY.md) (live URL) |
 
 ## Data source
 

@@ -25,11 +25,11 @@ Files that make this work (already in the repo): `Procfile`, `.python-version`,
 
 No environment variables are needed (no DB, posters come from the cache).
 
-## On presentation day
+## On demo day
 
 - The free tier **sleeps after ~15 min idle**; the first hit then takes ~30–60s to wake.
-  **Open the URL ~2–3 minutes before you present** so it's warm.
-- It needs internet (class Wi-Fi). If the Wi-Fi is unreliable, use the local backup below.
+  **Open the URL ~2–3 minutes before you demo** so it's warm.
+- It needs internet (venue Wi-Fi). If the Wi-Fi is unreliable, use the local backup below.
 
 ## Backup: run it locally (no internet, no database)
 

@@ -1,9 +1,8 @@
 # Project Proposal — Box Office vs. Ratings
 
 **Spencer Goss**
-*Finalized version (Week 5). The original Week 1 proposal, updated to reflect the
-project as actually built — see "How the project evolved" at the end for what changed
-and why.*
+*Finalized version of the original project proposal, updated to reflect the project as
+actually built — see "How the project evolved" at the end for what changed and why.*
 
 ## Introduction
 
@@ -65,16 +64,16 @@ the correlation between what a film makes and how the audience perceives it.
 7. Build the interactive Dash dashboard on top of the database.
 8. Present findings.
 
-## Timeline
+## Project plan
 
-- **Week 1:** Finalize proposal and confirm TMDB API access. Set up GitHub repository.
-- **Week 2:** Design the relational schema (ER diagram + documentation) and build the
-  initial PostgreSQL load script.
-- **Week 3:** Implement the end-to-end ETL pipeline: cleaning, feature engineering,
-  validation framework, logging/error handling.
-- **Week 4:** Build the interactive dashboard and develop insights from the data.
-- **Week 5:** End-to-end validation check; finalize the repository; write up insights
-  and prepare the presentation.
+1. Finalize the proposal and confirm TMDB API access; set up the GitHub repository.
+2. Design the relational schema (ER diagram + documentation) and build the initial
+   PostgreSQL load script.
+3. Implement the end-to-end ETL pipeline: cleaning, feature engineering, validation
+   framework, logging/error handling.
+4. Build the interactive dashboard and develop insights from the data.
+5. End-to-end validation check; finalize the repository; write up insights and prepare
+   the presentation.
 
 ## Expected Outcomes
 
@@ -91,11 +90,11 @@ the correlation between what a film makes and how the audience perceives it.
 
 ## How the project evolved from the original proposal
 
-The Week 1 proposal planned a simpler stack. Three things changed as the project matured:
+The original proposal planned a simpler stack. Three things changed as the project matured:
 
 1. **CSV file → PostgreSQL as the source of truth.** The original plan stored the
-   cleaned data only as a CSV. Week 2's relational-database requirement (and the reality
-   of needing genres as a many-to-many relationship) led to a normalized 3NF PostgreSQL
+   cleaned data only as a CSV. The need to demonstrate a real relational design (and the
+   reality of genres being a many-to-many relationship) led to a normalized 3NF PostgreSQL
    schema. The CSV still exists, but as a derived snapshot/fallback exported by the
    pipeline, not as the primary store.
 2. **Power BI → Dash + Plotly.** The original plan loaded a CSV into Power BI. The final

@@ -191,7 +191,7 @@ After the second stage, any film with `budget = 0` or `revenue = 0` is dropped. 
 
 **Caveat on 2026 data.** 2026 is partial year-to-date — only 36 films loaded so far, and revenue figures continue to climb for recently released titles. Dashboards should either filter to `release_year <= 2025` or label 2026 explicitly as "YTD (incomplete)."
 
-At the time of submission, the loaded database contains **5,659 films**, **19 genres**, and **14,914 film-genre links** (6,008 films are extracted from TMDB; 349 are dropped by the stricter data-quality filter described above).
+At the time of writing, the loaded database contains **5,659 films**, **19 genres**, and **14,914 film-genre links** (6,008 films are extracted from TMDB; 349 are dropped by the stricter data-quality filter described above).
 
 ## Example Relationship Flow
 

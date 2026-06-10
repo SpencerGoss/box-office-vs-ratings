@@ -1,6 +1,6 @@
 # Data Source Plan — Box Office vs. Ratings
 
-**Spencer Goss** · *Finalized version (Week 5)*
+**Spencer Goss**
 
 ## Source
 
