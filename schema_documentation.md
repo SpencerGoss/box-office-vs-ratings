@@ -187,9 +187,11 @@ Film data is sourced from **The Movie Database (TMDB) API** through a two-stage 
 
 After the second stage, any film with `budget = 0` or `revenue = 0` is dropped. TMDB reports zero for these fields on many older or less-documented titles, and including them would distort the analysis. The cleaning rules (`vote_count >= 100`, `budget > 0`, `revenue > 0`) are applied in both the Python filter and as `CHECK` constraints on `films`.
 
+**Stricter data-quality filter (transform layer).** The `> 0` rules above are necessary but not sufficient, because TMDB has two systematic problems for a *box-office* analysis: (1) **streaming-first films** (Netflix/Amazon — *The Gray Man* $200M→$0.45M, *The Irishman*, *Red Notice*) record only a token qualifying-theatrical figure, so they look like nine-figure flops; (2) **placeholder budgets/revenues** of $1–$5 pass `> 0` but produce absurd ROI. `clean_films()` therefore additionally keeps only films with **budget ≥ $1,000**, **revenue ≥ $1,000**, and **revenue ≥ 5% of budget**, dropping **349 rows**. The base-table `CHECK` constraints intentionally stay loose (`> 0`) so the raw load remains auditable; the stricter rules live in the Python transform and the `films_for_powerbi.csv` export.
+
 **Caveat on 2026 data.** 2026 is partial year-to-date — only 36 films loaded so far, and revenue figures continue to climb for recently released titles. Dashboards should either filter to `release_year <= 2025` or label 2026 explicitly as "YTD (incomplete)."
 
-At the time of submission, the loaded database contains **6,008 films**, **19 genres**, and **15,811 film-genre links**.
+At the time of submission, the loaded database contains **5,659 films**, **19 genres**, and **14,914 film-genre links** (6,008 films are extracted from TMDB; 349 are dropped by the stricter data-quality filter described above).
 
 ## Example Relationship Flow
 

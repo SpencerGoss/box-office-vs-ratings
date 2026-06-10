@@ -102,9 +102,27 @@ placeholder — never a live dependency that can break the demo.
 - **Genre matters most.** **Animation** is the sweet spot (high ratings *and* strong
   returns); **Documentaries** post the highest median ROI; Westerns and War the lowest.
 - **~45% of films are outright hits** (returning ≥2× their budget).
-- **Methodology note:** a naive rating-vs-ROI correlation looks near-zero only because a
-  handful of micro-budget films return 100×+, distorting the average — which is why this
-  project reports **medians**, not means, throughout.
+- **Methodology note:** the project reports **medians**, not means, throughout — a few
+  genuine micro-budget viral hits still return huge multiples and would skew any average.
+
+## Data quality & known limitations
+
+TMDB is crowd-sourced and has two systematic gaps that this **box-office** analysis must
+correct for, beyond the basic `budget/revenue/votes > 0` rules:
+
+- **Streaming-first films report almost no revenue.** TMDB records only *theatrical* box
+  office. Netflix/Amazon originals (e.g. *The Gray Man* — $200M budget, $0.45M recorded
+  revenue — *The Irishman*, *Red Notice*, *Wake Up Dead Man*) get a token qualifying
+  theatrical run, so they masquerade as nine-figure flops. Their real revenue is
+  subscriptions, which isn't public.
+- **Placeholder budgets/revenues.** Some rows carry $1–$5 "budgets" that pass `> 0` but
+  yield absurd ROI (a $5 budget with $12M revenue = a 2.4-million× return).
+
+The ETL therefore applies a **stricter data-quality filter** (`clean_films`): keep only
+films with **budget ≥ $1,000**, **revenue ≥ $1,000**, and **revenue ≥ 5% of budget**. This
+drops **349 rows (6,008 → 5,659)**; the per-rule drop counts are logged as data-quality
+evidence. The base-table schema keeps the loose `> 0` `CHECK`s so the raw load stays
+auditable — the stricter rules live in the transform layer.
 
 ---
 
@@ -115,8 +133,8 @@ A single, self-contained script that runs the full pipeline end-to-end with no m
 | Stage | What it does |
 |-------|--------------|
 | **Extract** | Reads cached `data/raw/*.json` by default (fast, deterministic). `--refresh` re-pulls from the live TMDB API (two-stage: `/discover/movie` by year → `/movie/{id}` for budget/revenue), with retry + backoff. |
-| **Transform** | pandas cleaning, dtype coercion, dedupe, and derived metrics (`profit`, `roi`, `profit_margin`, `budget_tier`, `performance`, `decade`). |
-| **Validate** | 7 data-quality checks (API response, null required fields, duplicate keys, dtypes, ranges, referential integrity, row-count reconciliation), each logged PASS/FAIL. |
+| **Transform** | pandas cleaning, dtype coercion, dedupe, the **data-quality filter** (placeholder budgets + streaming-only revenue — see *Data quality* above), and derived metrics (`profit`, `roi`, `profit_margin`, `budget_tier`, `performance`, `decade`). |
+| **Validate** | data-quality checks (API response, null required fields, duplicate keys, dtypes, ranges, referential integrity, row-count reconciliation), each logged PASS/FAIL. |
 | **Load** | Idempotent `INSERT … ON CONFLICT` upserts into `films` / `genres` / `film_genres`. Re-running never duplicates. |
 
 ```powershell
@@ -140,7 +158,9 @@ Three tables plus one analytics view — fully documented in
 | `film_genres` | M:N bridge resolving films ↔ genres. |
 | `v_films_enriched` | View adding `profit`, `roi`, and a comma-joined genre list — consumed directly by the Dash app. |
 
-**Current load:** 6,008 films (2000–2026 YTD) · 19 genres · 15,811 film-genre links.
+**Current load:** 5,659 films (2000–2026 YTD, after the data-quality filter) · 19 genres
+· 14,914 film-genre links. *(6,008 raw films are extracted; 349 are dropped as placeholder
+or streaming-only revenue — see [Data quality](#data-quality--known-limitations).)*
 
 ## Configuration (`.env`)
 

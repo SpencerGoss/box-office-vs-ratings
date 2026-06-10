@@ -63,6 +63,12 @@ LOG_FILE = LOG_DIR / "etl_pipeline.log"
 TMDB_BASE = "https://api.themoviedb.org/3"
 YEARS = range(2000, 2027)               # 2000..2026 inclusive (2026 partial YTD)
 MIN_VOTE_COUNT = 100                    # rating-reliability cleaning rule
+# Data-quality floors (stricter than the schema's budget/revenue > 0 CHECKs) — see
+# clean_films(). TMDB stores placeholder budgets ($1, $5) and only theatrical box
+# office, so streaming-first films report near-zero revenue. Both wreck the analysis.
+MIN_BUDGET = 1000                       # below this a "budget" is a placeholder, not real
+MIN_REVENUE = 1000                      # below this a "revenue" is a placeholder, not real
+MIN_REVENUE_RATIO = 0.05                # drop films earning < 5% of budget (streaming / unreported)
 PAGE_PAUSE_SEC = 0.05                   # politeness pause between discover pages
 DETAIL_PAUSE_SEC = 0.03                 # politeness pause between detail calls
 MAX_RETRIES = 3                         # API retry attempts
@@ -383,6 +389,28 @@ def clean_films(df: pd.DataFrame) -> tuple[pd.DataFrame, list[dict]]:
             df["vote_average"].between(VOTE_AVG_MIN, VOTE_AVG_MAX)]
     record("range_vote_average", before, len(df),
            f"vote_average outside [{VOTE_AVG_MIN}, {VOTE_AVG_MAX}]")
+
+    # --- data-quality filter (#6): stricter than the schema CHECK constraints ---
+    # Two systematic TMDB problems this box-office analysis cannot tolerate:
+    #   • Placeholder budgets/revenues ($1, $5, …) pass "> 0" but yield absurd ROI
+    #     (e.g. a $5 "budget" with $12M revenue = a 2.4-million× return).
+    #   • Streaming-first films (Netflix/Amazon) record only a token qualifying
+    #     theatrical figure, so they earn < 5% of budget and masquerade as
+    #     nine-figure flops (The Gray Man $200M→$0.45M, The Irishman, Red Notice).
+    #     Their real revenue is subscriptions, which TMDB does not track.
+    # The schema keeps the loose > 0 CHECKs so the raw load stays auditable; these
+    # rules drop the unreliable rows before the analytics layer / export.
+    for col, cond, reason in [
+        ("min_budget",  df["budget"]  >= MIN_BUDGET,
+         f"budget < ${MIN_BUDGET:,} (placeholder, not a real budget)"),
+        ("min_revenue", df["revenue"] >= MIN_REVENUE,
+         f"revenue < ${MIN_REVENUE:,} (placeholder, not a real figure)"),
+        ("revenue_ratio", df["revenue"] >= df["budget"] * MIN_REVENUE_RATIO,
+         f"revenue < {MIN_REVENUE_RATIO:.0%} of budget (streaming / unreported revenue)"),
+    ]:
+        before = len(df)
+        df = df[cond.reindex(df.index, fill_value=False)]
+        record(f"dataquality_{col}", before, len(df), reason)
 
     # runtime is a nullable, non-critical field. TMDB stores unknown runtimes as
     # 0. Rather than discard an otherwise-valid film (good budget/revenue/votes)
