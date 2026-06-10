@@ -46,20 +46,24 @@ BORDER = "#5E2A33"      # warm maroon border
 INK = "#F6EBD7"         # cream (primary text)
 MUTED = "#CBB097"       # warm sand text
 GRID = "#4E2129"        # chart gridlines (subtle on maroon)
-GOLD = "#F4C44E"        # bright marquee gold — primary (box office, hits, winners)
-ORANGE = "#F2872F"      # bright orange — secondary (returns, ROI, profitable)
-RED = "#F24A3A"         # bright red — losses / flops (pops above the maroon base)
-TEAL = "#26D3C5"        # electric cyan — the cool pop
+# A spread of distinct, bright hues so charts/cards read as clearly different
+# colours (not all warm-similar) and pop against the maroon base.
+GOLD = "#FFD23F"        # yellow-gold
+ORANGE = "#FF9A3C"      # orange
+RED = "#FF5470"         # pink-red (loss) — distinct from the maroon background
+TEAL = "#2BD9CB"        # cyan
+GREEN = "#5DD56A"       # green (good / profit)
+PURPLE = "#C77DFF"      # violet
 ACCENT = GOLD
 PAGE_BG = BG
 SHADOW = "0 2px 10px rgba(0,0,0,0.50)"
 FONT = "Inter, Segoe UI, Helvetica, Arial, sans-serif"
 HEAD_FONT = "Oswald, Inter, sans-serif"   # condensed, movie-poster feel for titles
-PALETTE = [GOLD, TEAL, ORANGE, RED, "#C9A36A", "#7FA59E"]
+PALETTE = [GOLD, TEAL, PURPLE, GREEN, ORANGE, RED]
 
 TIER_ORDER = ["Low (<$10M)", "Mid ($10-50M)", "High ($50-150M)", "Blockbuster (>=$150M)"]
 PERF_ORDER = ["Flop (<1x)", "Profitable (1-2x)", "Hit (>=2x)"]
-PERF_COLORS = {"Flop (<1x)": RED, "Profitable (1-2x)": ORANGE, "Hit (>=2x)": GOLD}
+PERF_COLORS = {"Flop (<1x)": RED, "Profitable (1-2x)": GOLD, "Hit (>=2x)": GREEN}
 # Plain-English badge text — the raw "Hit (>=2x)" labels are jargon to a demo audience.
 PERF_BADGE = {"Flop (<1x)": "Flop · lost money",
               "Profitable (1-2x)": "Profitable · made 1–2× its budget",
@@ -242,7 +246,7 @@ def fig_rating_band(df):
     b = (d.groupby("band", observed=True)
            .agg(roi=("roi_pct", "median"), n=("film_id", "count")).reset_index())
     fig = px.bar(b, x="band", y="roi", text="roi",
-                 color="roi", color_continuous_scale=[RED, ORANGE, GOLD],
+                 color="roi", color_continuous_scale=[RED, GOLD, GREEN],
                  labels={"band": "Audience rating", "roi": "Median ROI %"})
     fig.update_traces(texttemplate="%{text:.0f}%", textposition="outside")
     fig.update_layout(coloraxis_showscale=False)
@@ -253,7 +257,7 @@ def fig_rating_band(df):
 def fig_genre_bar(g):
     gg = g.sort_values("median_roi_pct")
     fig = px.bar(gg, x="median_roi_pct", y="genre", orientation="h", color="median_roi_pct",
-                 color_continuous_scale=[RED, ORANGE, GOLD],
+                 color_continuous_scale=[RED, GOLD, GREEN],
                  labels={"median_roi_pct": "Median ROI %", "genre": ""})
     fig.update_layout(coloraxis_showscale=False)
     return style(fig, "Median return by genre", height=470)
@@ -466,7 +470,7 @@ def _pct(series, value):
 def fig_money(row):
     labels = ["Budget", "Revenue", "Profit"]
     vals = [row["budget"], row["revenue"], row["profit"]]
-    colors = [MUTED, ORANGE, GOLD if row["profit"] >= 0 else RED]
+    colors = [MUTED, TEAL, GREEN if row["profit"] >= 0 else RED]
     fig = go.Figure(go.Bar(
         x=vals, y=labels, orientation="h", marker_color=colors,
         text=[money(v) for v in vals],
@@ -487,7 +491,7 @@ def film_ranks(row):
     """How the film ranks vs. all films — a text section in the card (not a chart),
     each metric with a slim inline progress bar."""
     items = [("Revenue", _pct(FILMS["revenue"], row["revenue"]), GOLD),
-             ("ROI", _pct(FILMS["roi_pct"], row["roi_pct"]), ORANGE),
+             ("ROI", _pct(FILMS["roi_pct"], row["roi_pct"]), PURPLE),
              ("Rating", _pct(FILMS["vote_average"], row["vote_average"]), TEAL)]
 
     def lab(p):
@@ -631,7 +635,7 @@ app.index_string = """<!DOCTYPE html>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   html, body { background:#2A0E13; color:#F6EBD7; }
-  ::selection { background:#F4C44E; color:#2A0E13; }
+  ::selection { background:#FFD23F; color:#2A0E13; }
   /* Dropdown (Dash 3 native) */
   .dash-dropdown, .dash-dropdown-trigger { background:#3A1820 !important; border-color:#5E2A33 !important;
       color:#F6EBD7 !important; border-radius:6px; }
@@ -644,24 +648,24 @@ app.index_string = """<!DOCTYPE html>
   .dash-options-list, .dash-dropdown-options { background:#3A1820 !important; color:#F6EBD7 !important; }
   .dash-options-list-option, .dash-dropdown-option { color:#F6EBD7 !important; background:transparent !important; }
   .dash-options-list-option:hover, .dash-dropdown-option:hover { background:#4B2129 !important;
-      color:#F4C44E !important; }
-  .dash-dropdown-action-button { color:#F4C44E !important; background:transparent !important; }
+      color:#FFD23F !important; }
+  .dash-dropdown-action-button { color:#FFD23F !important; background:transparent !important; }
   /* Range slider (Dash 3 native) */
   .dash-slider-track { background:#5E2A33 !important; }
-  .dash-slider-range { background:#F4C44E !important; }
-  .dash-slider-handle { background:#F4C44E !important; border-color:#F4C44E !important; }
+  .dash-slider-range { background:#FFD23F !important; }
+  .dash-slider-handle { background:#FFD23F !important; border-color:#FFD23F !important; }
   .dash-slider-mark-text { color:#CBB097 !important; }
   .dash-range-slider-input { background:#3A1820 !important; color:#F6EBD7 !important; border-color:#5E2A33 !important; }
   /* Tabs */
   .nav-tabs { border-bottom:1px solid #5E2A33 !important; }
   .nav-tabs .nav-link { color:#CBB097 !important; border:none !important; font-weight:500; }
   .nav-tabs .nav-link:hover { color:#F6EBD7 !important; }
-  .nav-tabs .nav-link.active { color:#F4C44E !important; background:transparent !important;
-      border-bottom:2px solid #F4C44E !important; }
+  .nav-tabs .nav-link.active { color:#FFD23F !important; background:transparent !important;
+      border-bottom:2px solid #FFD23F !important; }
   /* Top-films poster cards */
   .topcard { transition: transform .12s ease; }
   .topcard:hover { transform: translateY(-4px); }
-  .topcard:hover img { outline: 2px solid #F4C44E; outline-offset: 1px; }
+  .topcard:hover img { outline: 2px solid #FFD23F; outline-offset: 1px; }
 </style>
 </head>
 <body>{%app_entry%}<footer>{%config%}{%scripts%}{%renderer%}</footer></body>
@@ -721,12 +725,12 @@ app.layout = dbc.Container(fluid=True, className="px-4 py-3",
         dbc.Col(kpi("Median return", "kpi-mult", ORANGE,
                     tip="Typical revenue as a multiple of budget (e.g. 1.7× = $1.70 back per $1)."),
                 md=2, xs=6),
-        dbc.Col(kpi("Total box office", "kpi-box", GOLD,
+        dbc.Col(kpi("Total box office", "kpi-box", GREEN,
                     tip="Combined worldwide revenue of all films in the current selection."),
                 md=2, xs=6),
-        dbc.Col(kpi("Total profit", "kpi-profit", GOLD,
+        dbc.Col(kpi("Total profit", "kpi-profit", PURPLE,
                     tip="Combined revenue minus combined budget."), md=2, xs=6),
-        dbc.Col(kpi("Hits (2×+)", "kpi-hits", ORANGE,
+        dbc.Col(kpi("Hits (2×+)", "kpi-hits", RED,
                     tip="Share of films that earned at least 2× their budget back."), md=2, xs=6),
     ], className="g-2 my-3"),
 
