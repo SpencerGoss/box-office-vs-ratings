@@ -365,7 +365,11 @@ def money(v):
     sign, a = ("-" if v < 0 else ""), abs(v)
     if a >= 1e9:
         return f"{sign}${a/1e9:.2f}B"
-    return f"{sign}${a/1e6:.1f}M"
+    if a >= 1e6:
+        return f"{sign}${a/1e6:.1f}M"
+    if a >= 1e3:                       # e.g. a $15K micro-budget would show as "$0.0M"
+        return f"{sign}${a/1e3:.0f}K"
+    return f"{sign}${a:.0f}"
 
 
 def stat(label, value, color=INK):
