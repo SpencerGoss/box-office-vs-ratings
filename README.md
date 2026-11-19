@@ -6,6 +6,9 @@ films from the TMDB API (2000–2026), cleans and validates them, and loads them
 application, themed like a movie theater, for exploring how film budgets, box-office
 returns, and audience ratings relate.
 
+<a href="https://box-office-vs-ratings.onrender.com"><img src="docs/screenshots/01-film-page.png" width="100%" alt="Film breakdown page in the live app"></a>
+<sub>The film breakdown page. Click the picture to open the live app (it can take 30 to 60 seconds to wake up).</sub>
+
 **Question:** Do films that earn more also rate higher, and what are the numbers behind
 any specific film?
 
