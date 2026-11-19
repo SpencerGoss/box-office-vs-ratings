@@ -1,7 +1,7 @@
 # Box Office vs. Ratings: Interactive Film Analytics
 
 An end-to-end analytics project: a reproducible **Python ETL pipeline** extracts ~6,000
-films from the TMDB API (2000–2026), cleans and validates them, and loads them into a
+films from the TMDB API (2000 to 2026), cleans and validates them, and loads them into a
 **3NF PostgreSQL** database, which powers an interactive **Dash + Plotly** web
 application, themed like a movie theater, for exploring how film budgets, box-office
 returns, and audience ratings relate.
@@ -69,7 +69,7 @@ the page becomes a full breakdown of that film:
 
 | Tab | What it does |
 |-----|--------------|
-| **Top films** | A **poster wall**: sub-tabs for biggest box office, most profitable, best return-on-budget, and biggest flops, each showing the **top 10 as ranked movie-poster cards** (#1–#10 + the number). Click a poster to open that film. |
+| **Top films** | A **poster wall**: sub-tabs for biggest box office, most profitable, best return-on-budget, and biggest flops, each showing the **top 10 as ranked movie-poster cards** (#1 to #10 + the number). Click a poster to open that film. |
 | **Compare films** | Pick any two films for a head-to-head: their **posters side by side**, a grouped budget/revenue/profit chart, and a stat table with the winning value highlighted. |
 | **Browse films** | A sortable, searchable table of every film; click a row to open it. |
 | **Ratings vs. returns** | The core question: a rating-vs-return scatter of every film, plus median return by rating band. |
@@ -84,7 +84,7 @@ the page becomes a full breakdown of that film:
 Six KPIs (**films shown, avg rating, median return, total box office, total profit, and
 hit rate (films that earned ≥2× their budget)**) recompute with the filters (genre,
 decade, budget tier, and a release-year range), as do every chart and the table. The
-release-year filter **defaults to 2000–2025**: 2026 is partial year-to-date (only the
+release-year filter **defaults to 2000 to 2025**: 2026 is partial year-to-date (only the
 biggest early releases have data, so its averages skew high), so it's kept out of the
 default view and is opt-in via the slider.
 
@@ -152,7 +152,7 @@ correct for, beyond the basic `budget/revenue/votes > 0` rules:
   revenue; plus *The Irishman*, *Red Notice*, *Wake Up Dead Man*) get a token qualifying
   theatrical run, so they masquerade as nine-figure flops. Their real revenue is
   subscriptions, which isn't public.
-- **Placeholder budgets/revenues.** Some rows carry $1–$5 "budgets" that pass `> 0` but
+- **Placeholder budgets/revenues.** Some rows carry $1 to $5 "budgets" that pass `> 0` but
   yield absurd ROI (a $5 budget with $12M revenue = a 2.4-million× return).
 
 The ETL therefore applies a **stricter data-quality filter** (`clean_films`): keep only
@@ -195,7 +195,7 @@ Three tables plus one analytics view, fully documented in
 | `film_genres` | M:N bridge resolving films ↔ genres. |
 | `v_films_enriched` | View adding `profit`, `roi`, and a comma-joined genre list, consumed directly by the Dash app. |
 
-**Current load:** 5,659 films (2000–2026 YTD, after the data-quality filter) · 19 genres
+**Current load:** 5,659 films (2000 to 2026 YTD, after the data-quality filter) · 19 genres
 · 14,914 film-genre links. *(6,008 raw films are extracted; 349 are dropped as placeholder
 or streaming-only revenue; see [Data quality](#data-quality--known-limitations).)*
 
