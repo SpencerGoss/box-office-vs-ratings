@@ -135,7 +135,7 @@ placeholder, never a live dependency that can break the demo.
   rating: films rated **under 5 lose money**, while films rated **8+ return several times**
   their budget.
 - **Bigger budgets pay off.** Blockbusters (>$150M) post the **highest median ROI** *and*
-  the best ratings: large bets are well-vetted; the smallest films are the riskiest.
+  the best ratings: big-budget films tend to be well vetted; the smallest films are the riskiest.
 - **Genre matters most.** **Animation** is the sweet spot (high ratings *and* strong
   returns); **Documentaries** post the highest median ROI; Westerns and War the lowest.
 - **~47% of films are outright hits** (returning ≥2× their budget).
@@ -249,5 +249,3 @@ box-office-vs-ratings/
 
 Film data is sourced from [The Movie Database (TMDB) API](https://developer.themoviedb.org/).
 This product uses the TMDB API but is not endorsed or certified by TMDB.
-</content>
-</invoke>
